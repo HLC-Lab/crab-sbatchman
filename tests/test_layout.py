@@ -59,6 +59,19 @@ def test_gitignore_has_local_files():
         assert entry in lines, entry
 
 
+def test_gitignore_ignores_the_sbatchman_projects_but_not_the_jobs_files():
+    """`sbatchman init` makes benchmarks/<name>/SbatchMan/ on every machine: it is never tracked."""
+    for path in (
+        "benchmarks/blink/SbatchMan/configs/leonardo/crab_run_2.sh",
+        "benchmarks/qe/SbatchMan/experiments/leonardo/crab_qe_2/qe-alone-2n/data_app_0.csv",
+    ):
+        ignored = subprocess.run(["git", "check-ignore", "-q", path], cwd=ROOT, check=False)
+        assert ignored.returncode == 0, path
+    for path in ("benchmarks/blink/smoke.yaml", "benchmarks/qe/README.md"):
+        kept = subprocess.run(["git", "check-ignore", "-q", path], cwd=ROOT, check=False)
+        assert kept.returncode == 1, path
+
+
 def test_no_undecided_repo_name_in_tracked_text():
     submodule_paths = {"CRAB", "crab-wrappers"}
     forbidden = re.compile(r"crab-suite|net4exa|github\.com/HLC-Lab/(?!CRAB\b|crab-wrappers\b)")
