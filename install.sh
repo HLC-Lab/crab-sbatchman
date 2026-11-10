@@ -160,6 +160,7 @@ if [[ "$ROLE" == cluster ]]; then
     SLURM_ACCOUNT=""
     SLURM_PARTITION=""
     SLURM_QOS=""
+    SBATCHMAN_CLUSTER_NAME=""
     # shellcheck source=/dev/null
     [[ -f "$ROOT/site/leonardo.env" ]] && source "$ROOT/site/leonardo.env"
     # shellcheck source=/dev/null
@@ -246,6 +247,34 @@ for dir in "$ROOT"/benchmarks/*/; do
     fi
 done
 
+# 7b. env.sh: what a partner sources in every new shell. It finds its own folder when
+# sourced (bash and zsh), so it holds no absolute path and a moved umbrella still works.
+env_head="# env.sh, written by install.sh (role $ROLE). Source it: . ./env.sh"$'\n'
+IFS= read -r -d '' env_body <<'EOF' || true
+_umbrella_env_here="${BASH_SOURCE[0]:-$0}"
+UMBRELLA_ROOT="$(cd "$(dirname "$_umbrella_env_here")" && pwd -P)"
+unset _umbrella_env_here
+unset PYTHONPATH PYTHONHOME
+. "$UMBRELLA_ROOT/CRAB/.venv/bin/activate"
+export CRAB_PATH_WRAPPERS="$UMBRELLA_ROOT/crab-wrappers"
+EOF
+if [[ "$ROLE" == cluster ]]; then
+    cluster_name="${SBATCHMAN_CLUSTER_NAME:-leonardo}"
+    if [[ ! "$cluster_name" =~ ^[A-Za-z0-9_.-]+$ ]]; then
+        echo "install.sh: SBATCHMAN_CLUSTER_NAME may only contain letters, digits, '_', '.' and '-'" >&2
+        exit 2
+    fi
+    env_role="export SBATCHMAN_CLUSTER_NAME=\"$cluster_name\""$'\n'
+else
+    env_role='export CRAB_WEB_PORT="${CRAB_WEB_PORT:-8899}"'$'\n'
+fi
+env_tail='echo "crab:      $(command -v crab)"'$'\n''echo "sbatchman: $(command -v sbatchman)"'$'\n'
+env_content="$env_head$env_body$env_role$env_tail"
+read_file env_current "$ROOT/env.sh"
+if [[ "$env_content" != "$env_current" ]]; then
+    write_file "$ROOT/env.sh" "$env_content"
+fi
+
 # 8. The benchmarks wizard, last: it asks questions.
 if [[ "$ROLE" == cluster && $NO_SETUP -eq 0 ]]; then
     echo "Next: register the benchmarks you will run (skip with --no-setup)."
@@ -256,4 +285,5 @@ if [[ $DRY_RUN -eq 1 ]]; then
     echo "install.sh finished: role $ROLE (dry run, nothing was changed)"
 else
     echo "install.sh finished: role $ROLE"
+    echo "Next: source env.sh"
 fi
