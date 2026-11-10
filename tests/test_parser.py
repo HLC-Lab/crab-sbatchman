@@ -204,3 +204,78 @@ def test_rows_load_into_sqlite_with_quoted_column_names(parse: Any, tmp_path: Pa
     assert len(values) == 25
     assert values[0] == 0.000920592
     assert all(isinstance(v, float) for v in values)
+
+
+# --- real Leonardo results (trimmed copies in tests/fixtures/results/) ---------------------
+
+RESULTS = Path(__file__).resolve().parent / "fixtures" / "results" / "leonardo"
+BLINK_NOISE_JOB = RESULTS / "crab_run_4" / "blink-noise-4n-1048576B" / "20261110_104331"
+QE_ALONE_JOB = RESULTS / "crab_qe_2" / "qe-alone-2n" / "20261110_104333"
+
+
+class RealJob:
+    """The fields the parser reads, for a job folder copied from a real run."""
+
+    def __init__(
+        self, base: Path, tag: str, config_name: str, job_id: int, variables: dict[str, Any]
+    ) -> None:
+        self.status = "COMPLETED"
+        self.tag = tag
+        self.config_name = config_name
+        self.job_id = job_id
+        self.variables = variables
+        self._base = base
+
+    def get_job_base_path(self) -> Path:
+        return self._base
+
+
+def test_real_blink_noise_job_gives_one_table_with_the_six_experiment_folders(
+    parse: Any,
+) -> None:
+    job = RealJob(
+        BLINK_NOISE_JOB,
+        "blink-noise-4n-1048576B",
+        "crab_run_4",
+        64054665,
+        {"nodes": 4, "msgsize": 1048576},
+    )
+
+    result = parse(job)
+
+    assert list(result) == ["app_0"]
+    rows = result["app_0"]
+    assert len(rows) == 6 * 12
+    assert {r["experiment"] for r in rows} == {
+        "r1_baseline",
+        "r1_noise",
+        "r2_baseline",
+        "r2_noise",
+        "r3_baseline",
+        "r3_noise",
+    }
+    assert list(rows[0])[:7] == BLINK_COLUMNS
+    assert {r["var_nodes"] for r in rows} == {4}
+    assert {r["var_msgsize"] for r in rows} == {1048576}
+    assert {r["tag"] for r in rows} == {"blink-noise-4n-1048576B"}
+    assert {r["config"] for r in rows} == {"crab_run_4"}
+
+
+def test_real_qe_alone_job_gives_the_wall_time_columns_then_the_extras(parse: Any) -> None:
+    job = RealJob(QE_ALONE_JOB, "qe-alone-2n", "crab_qe_2", 64054667, {"nodes": 2})
+
+    result = parse(job)
+
+    assert list(result) == ["app_0"]
+    rows = result["app_0"]
+    assert len(rows) == 10
+    assert list(rows[0]) == [
+        "run_id",
+        "msg_size",
+        "0_wall_time_seconds",
+        *EXTRA_COLUMNS,
+        "var_nodes",
+    ]
+    assert {r["experiment"] for r in rows} == {""}
+    assert rows[0]["0_wall_time_seconds"] == 18.07
+    assert isinstance(rows[0]["run_id"], int)

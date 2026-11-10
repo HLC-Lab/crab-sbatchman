@@ -47,7 +47,10 @@ def _read(path):
 def parse(job):
     if job.status != "COMPLETED":
         return None
-    run = Path(job.get_job_base_path()) / "run"
+    base = Path(job.get_job_base_path())
+    # One experiment writes into <job>/run; several experiments (r1_baseline, r1_noise, ...) sit
+    # directly under the job folder.
+    run = base / "run" if (base / "run").is_dir() else base
     if not run.is_dir():
         return None
     variables = {f"var_{name}": value for name, value in (job.variables or {}).items()}
