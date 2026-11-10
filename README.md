@@ -111,14 +111,21 @@ source env.sh
 | Crab command, Preset | leave empty |
 
 **Never press "Install CRAB" for this cluster.** The umbrella already installed it, and the button
-would add a second, separate CRAB. What the dashboard does is in
+would add a second, separate CRAB. If a cluster profile with that name already exists on the laptop,
+the dashboard keeps the old one and saves the new one as `<name>2`: connect the one whose line shows
+the pinned CRAB version and a path ending in `umbrella-folder/CRAB`. The dashboard reaches the
+umbrella's CRAB through a plain ssh command, so it works without `module load python` (checked on
+Leonardo, where that shell's `python3` is 3.6.8). What the dashboard does is in
 [`CRAB/docs/using/dashboard.md`](CRAB/docs/using/dashboard.md).
 
 **`sbatchman fetch`: results to the laptop.** The installer also prints a `remotes-config.toml`
 block. Save it as `~/.config/sbatchman/remotes-config.toml` (merge by hand if the file exists).
 Then, in a benchmark folder, `sbatchman fetch` copies the cluster's `SbatchMan/` folder (without
-`scratch/`) with rsync. **This route is not yet tested against Leonardo** (certificate login,
-rotating login nodes): treat it as a draft and copy results with rsync by hand if it fails.
+`scratch/`) with rsync. Tested against Leonardo with the certificate login: the smoke job's folder
+(about 115 KB) came to the laptop in one run. Large result folders and repeated fetches that land
+on different login nodes are not tested yet; if a fetch fails, copy the results with rsync by hand.
+A laptop has no `squeue`, and that is fine: SbatchMan only asks the scheduler about jobs that have
+not finished, and ignores a failed query, so fetched jobs keep the status they had on the cluster.
 `sbatchman visualize` needs a `parser.py` and a `plots.json` in the benchmark folder, and the
 umbrella does not ship them yet (see Known limits).
 
@@ -428,8 +435,9 @@ More rows are in the [CRAB troubleshooting table](CRAB/docs/using/sbatchman-inte
   the umbrella on a larger filesystem (your scratch or work area) before the QE launch. The
   `scratch/` folders of finished jobs hold no results and can be deleted. List them with
   `find benchmarks/qe/SbatchMan -type d -name scratch -prune`.
-- **The fetch route is untested.** `sbatchman fetch` through the laptop's `remotes-config.toml` has
-  not been tested against Leonardo (certificate login, rotating login nodes).
+- **The fetch route is tested lightly.** `sbatchman fetch` through the laptop's `remotes-config.toml`
+  worked against Leonardo for one small job. Large folders and fetches that land on different login
+  nodes are not tested.
 - **No parser or plots yet.** `sbatchman visualize` needs a `parser.py` and a `plots.json` in the
   benchmark folder. They are planned, not shipped. Today the results are the `data_app_<i>.csv`
   files. The pinned CRAB docs say the `crab web` dashboard has no view into a SbatchMan

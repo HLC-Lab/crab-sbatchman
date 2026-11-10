@@ -392,7 +392,7 @@ In crab web, open Remotes and press "+ Add cluster", then type these values:
 Start crab web from the shell that has your ssh agent (the certificate login), because the agent is found through SSH_AUTH_SOCK.
 Never press "Install CRAB" for this cluster: the umbrella already installed it, and the button would add a second, separate CRAB.
 
-== sbatchman fetch: results to this laptop (not yet tested on Leonardo)
+== sbatchman fetch: results to this laptop
 Save this as ~/.config/sbatchman/remotes-config.toml (merge by hand if the file exists):
 --- remotes-config.toml ---
 [global]

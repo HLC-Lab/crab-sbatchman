@@ -59,7 +59,7 @@ def test_toml_block_parses_and_lists_every_benchmark(tmp_path):
     result, root, _ = laptop(tmp_path, "--role", "laptop", *FLAGS)
     assert result.returncode == 0, result.stderr
     assert (
-        "== sbatchman fetch: results to this laptop (not yet tested on Leonardo)"
+        "== sbatchman fetch: results to this laptop"
         in result.stdout.splitlines()
     )
     assert (
@@ -106,7 +106,7 @@ def test_help_block_comes_after_the_finish_line_in_order(tmp_path):
     assert lines[finish + 1] == "Next: source env.sh"
     heads = [
         lines.index("== crab web: add the cluster"),
-        lines.index("== sbatchman fetch: results to this laptop (not yet tested on Leonardo)"),
+        lines.index("== sbatchman fetch: results to this laptop"),
         lines.index("== start the tools"),
     ]
     assert finish < heads[0] < heads[1] < heads[2]
