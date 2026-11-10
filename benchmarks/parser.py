@@ -1,8 +1,8 @@
 """Generic SbatchMan parser for CRAB results: `sbatchman visualize` calls parse(job) per job.
 
 Run it from the benchmark folder that holds plots.json (benchmarks/blink or benchmarks/qe; each
-has a symlink to this file). It reads every <job folder>/run/**/data_app_<i>.csv of a COMPLETED
-job and returns one table per app: "app_<i>" holds every CSV column (numbers typed), then app,
+has a symlink to this file). It reads every data_app_<i>.csv of a COMPLETED job (under <job folder>/run
+for one experiment, directly under the job folder for several) and returns one table per app: "app_<i>" holds every CSV column (numbers typed), then app,
 tag, config, job_id, experiment (the CSV's folder relative to run/, "" when directly in it) and
 one var_<name> column per SbatchMan variable of the job. Files of one app share its table.
 """

@@ -54,6 +54,14 @@ SbatchMan skips a job identical to one that already ran in the project. To run i
 folder per experiment with `data_app_0.csv` (the QE measurements), `crab_run.json` and SbatchMan's
 `metadata.yaml`.
 
+## Plots
+
+`plots.json` here holds two starter plots (wall time per run, and average wall time per job tag)
+for `sbatchman visualize`, with `parser.py` (a symlink to `../parser.py`). On the laptop, in this
+folder, run `sbatchman fetch` and then `sbatchman visualize`, and open `http://127.0.0.1:8765`. The
+tables, the columns and the limits are in "Explore results with `sbatchman visualize`" in the
+[umbrella README](../../README.md).
+
 ## Known limitation: disk use
 
 `pw.x` writes its scratch files (wavefunctions, charge density) into the experiment folders, which

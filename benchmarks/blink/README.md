@@ -48,6 +48,14 @@ SbatchMan skips a job identical to one that already ran in the project. To run i
 with `data_app_0.csv` (the victim's measurements), `crab_run.json` (the worker's summary) and
 SbatchMan's `metadata.yaml`.
 
+## Plots
+
+`plots.json` here holds two starter plots (baseline against noise, and per repetition) for
+`sbatchman visualize`, with `parser.py` (a symlink to `../parser.py`). On the laptop, in this
+folder, run `sbatchman fetch` and then `sbatchman visualize`, and open `http://127.0.0.1:8765`. The
+tables, the columns and the limits are in "Explore results with `sbatchman visualize`" in the
+[umbrella README](../../README.md).
+
 ## What you may change
 
 - The `nodes` list under `variables`. Every value needs a `crab_run_<nodes>` config, so keep it

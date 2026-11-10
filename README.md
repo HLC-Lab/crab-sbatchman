@@ -126,8 +126,8 @@ Then, in a benchmark folder, `sbatchman fetch` copies the cluster's `SbatchMan/`
 on different login nodes are not tested yet; if a fetch fails, copy the results with rsync by hand.
 A laptop has no `squeue`, and that is fine: SbatchMan only asks the scheduler about jobs that have
 not finished, and ignores a failed query, so fetched jobs keep the status they had on the cluster.
-`sbatchman visualize` needs a `parser.py` and a `plots.json` in the benchmark folder, and the
-umbrella does not ship them yet (see Known limits).
+To plot the fetched results, see "Explore results with `sbatchman visualize`" under "Run the shipped
+benchmarks".
 
 ## Run the shipped benchmarks
 
@@ -170,6 +170,78 @@ benchmark folder. In it: `config.json` (what the job ran), one folder per experi
 project, archived and failed jobs included. Either change the `tag` **and** the `"name"` in the
 heredoc's `global_options` together (they must stay equal), or launch with
 `sbatchman launch -f <file> --force`.
+
+### Explore results with `sbatchman visualize`
+
+`sbatchman visualize` loads the results of one benchmark folder into a small SQL database and shows
+them as plots on a local page. Run it on the laptop, on results you fetched, from the folder that
+holds the results:
+
+```bash
+source env.sh
+cd benchmarks/blink
+sbatchman fetch
+sbatchman visualize
+```
+
+Then open `http://127.0.0.1:8765` in a browser.
+
+- `source env.sh` is needed in every new shell, as everywhere else.
+- `cd benchmarks/blink` (or `benchmarks/qe`) matters twice: `fetch` copies the results into the
+  project of the current folder, and `visualize` reads `./parser.py` and `./plots.json` from the
+  current folder, so it must be started in the folder that holds them.
+- `sbatchman fetch` copies the cluster's results to the laptop (see "Install on your laptop").
+  Fetch again after new jobs finish.
+- `sbatchman visualize` serves the page on port 8765. The port is fixed, there is no option for it.
+  `crab web` runs on 8899 on the laptop, so the two can run side by side. `--presets` is accepted
+  and ignored.
+
+**What the umbrella ships.**
+
+| File | What it is |
+|---|---|
+| `benchmarks/parser.py` | The parser SbatchMan calls once per job. Generic, standard library only. Each benchmark folder has a `parser.py` symlink to it. |
+| `benchmarks/blink/plots.json` | Two starter plots for Blink results. |
+| `benchmarks/qe/plots.json` | Two starter plots for Quantum ESPRESSO results. |
+
+**What each start does.** `visualize` runs the parser over every job of the project and rebuilds
+`SbatchMan/data.sqlite` (database name `data`). Jobs that are not `COMPLETED` are skipped, so a
+running or failed job does not appear. A laptop without Slurm is fine: SbatchMan only asks the
+scheduler about unfinished jobs and ignores a failed query.
+
+**The tables.** There is one table per app, named `app_<i>`: the Blink and QE results are in
+`app_0`. Its columns are:
+
+- the columns of `data_app_<i>.csv`. Blink: `msg_size`, `0_Avg-Duration_s`, `0_Min-Duration_s`,
+  `0_Max-Duration_s`, `0_Median-Duration_s`, `0_MainRank-Duration_s`, `run_id`. QE: `run_id`,
+  `msg_size`, `0_wall_time_seconds`;
+- then `app`, `tag`, `config`, `job_id` and `experiment`;
+- then one `var_<name>` column per variable of the job, for example `var_nodes`.
+
+`experiment` is the name of the experiment folder: empty for a job with a single experiment,
+`r1_baseline`, `r1_noise`, `r2_baseline`, ... for the six-experiment noise jobs (`blink-noise`,
+`qe-noise`). A job with several experiments keeps those folders directly under the job folder; a job
+with one experiment keeps it in `run/`. The starter plots tell baseline from noise with
+`CASE WHEN experiment LIKE '%noise' THEN 'noise' ELSE 'baseline' END`.
+
+A column name that starts with a digit or contains a dash must be in double quotes in SQL:
+
+```sql
+SELECT "0_Avg-Duration_s" FROM app_0
+```
+
+**The starter plots.**
+
+| Benchmark | Plot | Shows |
+|---|---|---|
+| Blink | Baseline vs noise (bar) | Average duration in ms per message size, grouped by state and node count. |
+| Blink | Per repetition (bar) | The same average, per repetition `r1` to `rN`. |
+| QE | Wall time per run (line) | The wall time of each run, one line per state and tag. |
+| QE | Average wall time (bar) | The average wall time per job tag, baseline against noise. |
+
+They are starters. To change one, edit `plots.json` by hand. The page's plot builder lets you
+explore other queries, but the server never writes `plots.json` back and the page's export button
+was not tested: save what you want to keep by editing the file.
 
 ## install.sh reference
 
@@ -422,6 +494,9 @@ Start with the job's `stderr.log` and `stdout.log` in its job folder.
 | `symbol lookup error` in `bindings_app_<n>.log`, exit code 127 | Two apps from different module stacks share a job. | Start the receipts' `pre_run` with `module purge`. |
 | Job `COMPLETED`, but no or an empty `data_app_0.csv` | A failed run does not fail the job. | Read `bindings_app_0.log`, `error_app_0.log` and the job's `stderr.log`. |
 | `crab web` or `sbatchman visualize` will not start: port in use | Another program holds the port (`crab web` 8899 here, `visualize` 8765). | `crab web --port <other port>`; `visualize` cannot change its port. |
+| The `visualize` page opens but has no data or no plots | No job of the project is `COMPLETED` (running and failed jobs are skipped), or `visualize` was started in another folder than the fetched results. | `sbatchman status`, then `sbatchman fetch` again once the jobs have finished, in the benchmark folder you start `visualize` from. |
+| `Parser script not found` from `sbatchman visualize` | `visualize` was started outside the benchmark folder, so there is no `./parser.py`. | `cd benchmarks/blink` (or `benchmarks/qe`), then `sbatchman visualize`. |
+| `unrecognized token "0_Avg"` in the plot builder's SQL | A column name that starts with a digit or contains a dash is not in double quotes. | Write `"0_Avg-Duration_s"`, with the quotes. |
 | `crab` or `sbatchman` stops starting after you moved the folder | The venv is not relocatable. | `./install.sh` again. |
 | Timings differ between jobs of one campaign | Shared nodes (no `exclusive`). | Add `exclusive: true` to `default_conf` and relaunch with `--force`. |
 
@@ -438,7 +513,6 @@ More rows are in the [CRAB troubleshooting table](CRAB/docs/using/sbatchman-inte
 - **The fetch route is tested lightly.** `sbatchman fetch` through the laptop's `remotes-config.toml`
   worked against Leonardo for one small job. Large folders and fetches that land on different login
   nodes are not tested.
-- **No parser or plots yet.** `sbatchman visualize` needs a `parser.py` and a `plots.json` in the
-  benchmark folder. They are planned, not shipped. Today the results are the `data_app_<i>.csv`
-  files. The pinned CRAB docs say the `crab web` dashboard has no view into a SbatchMan
-  campaign's job status or results, so read the CSVs directly.
+- **The plots were not seen in a browser yet.** The plot definitions return the right rows and build
+  a plot through the server's HTTP API on real Blink and QE results, but how they look on the page
+  is not checked. `visualize` on a login node through an ssh tunnel is untested.
