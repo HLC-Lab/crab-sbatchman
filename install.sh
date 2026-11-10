@@ -9,13 +9,19 @@ SBATCHMAN_VERSION="${SBATCHMAN_VERSION:-2.0.4}"
 
 usage() {
     cat <<'EOF'
-Usage: ./install.sh [--role cluster|laptop] [--account NAME] [--no-setup] [--dry-run] [-h|--help]
+Usage: ./install.sh [--role cluster|laptop] [--account NAME] [--no-setup] [--dry-run]
+                    [--login-host HOST] [--user NAME] [--remote-dir PATH] [-h|--help]
 
   --role ROLE      cluster (default): CRAB, SbatchMan, the configs file, the setup wizard.
                    laptop: CRAB with the web dashboard and SbatchMan with its plots.
   --account NAME   Slurm account to charge; saved in site/local.env (cluster role).
   --no-setup       skip the interactive 'crab setup' wizard at the end.
   --dry-run        print every command and file write, run and write nothing.
+  --login-host HOST, --user NAME, --remote-dir PATH
+                   laptop only: the cluster's login host, your user there and the umbrella's
+                   folder on the cluster. They only fill the help block printed at the end;
+                   nothing is saved (site/local.env may hold SITE_LOGIN_HOST, SITE_USER and
+                   SITE_REMOTE_DIR instead).
 EOF
 }
 
@@ -23,6 +29,9 @@ ROLE=cluster
 ACCOUNT_FLAG=""
 NO_SETUP=0
 DRY_RUN=0
+LOGIN_HOST_FLAG=""
+USER_FLAG=""
+REMOTE_DIR_FLAG=""
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -43,6 +52,21 @@ while [[ $# -gt 0 ]]; do
         --dry-run)
             DRY_RUN=1
             shift
+            ;;
+        --login-host)
+            [[ $# -ge 2 ]] || { usage >&2; exit 2; }
+            LOGIN_HOST_FLAG="$2"
+            shift 2
+            ;;
+        --user)
+            [[ $# -ge 2 ]] || { usage >&2; exit 2; }
+            USER_FLAG="$2"
+            shift 2
+            ;;
+        --remote-dir)
+            [[ $# -ge 2 ]] || { usage >&2; exit 2; }
+            REMOTE_DIR_FLAG="$2"
+            shift 2
             ;;
         -h | --help)
             usage
@@ -67,6 +91,24 @@ esac
 
 if [[ -n "$ACCOUNT_FLAG" && ! "$ACCOUNT_FLAG" =~ ^[A-Za-z0-9_.-]+$ ]]; then
     echo "install.sh: the account may only contain letters, digits, '_', '.' and '-'" >&2
+    exit 2
+fi
+
+if [[ "$ROLE" == cluster && (-n "$LOGIN_HOST_FLAG" || -n "$USER_FLAG" || -n "$REMOTE_DIR_FLAG") ]]; then
+    echo "install.sh: --login-host, --user and --remote-dir are for --role laptop" >&2
+    usage >&2
+    exit 2
+fi
+if [[ -n "$LOGIN_HOST_FLAG" && ! "$LOGIN_HOST_FLAG" =~ ^[A-Za-z0-9.-]+$ ]]; then
+    echo "install.sh: --login-host may only contain letters, digits, '.' and '-'" >&2
+    exit 2
+fi
+if [[ -n "$USER_FLAG" && ! "$USER_FLAG" =~ ^[A-Za-z0-9._-]+$ ]]; then
+    echo "install.sh: --user may only contain letters, digits, '.', '_' and '-'" >&2
+    exit 2
+fi
+if [[ -n "$REMOTE_DIR_FLAG" && ! "$REMOTE_DIR_FLAG" =~ ^[A-Za-z0-9._/~-]+$ ]]; then
+    echo "install.sh: --remote-dir may only contain letters, digits, '.', '_', '/', '~' and '-'" >&2
     exit 2
 fi
 
@@ -286,4 +328,98 @@ if [[ $DRY_RUN -eq 1 ]]; then
 else
     echo "install.sh finished: role $ROLE"
     echo "Next: source env.sh"
+fi
+
+# 9. Laptop only: what to type into the dashboard and the sbatchman fetch config. Printed
+# only: nothing here is written into the home folder.
+if [[ "$ROLE" == laptop ]]; then
+    SITE_LOGIN_HOST=""
+    SITE_USER=""
+    SITE_REMOTE_DIR=""
+    SBATCHMAN_CLUSTER_NAME=""
+    # shellcheck source=/dev/null
+    [[ -f "$ROOT/site/leonardo.env" ]] && source "$ROOT/site/leonardo.env"
+    # shellcheck source=/dev/null
+    [[ -f "$ROOT/site/local.env" ]] && source "$ROOT/site/local.env"
+
+    cluster_name="${SBATCHMAN_CLUSTER_NAME:-leonardo}"
+    login_host="${LOGIN_HOST_FLAG:-${SITE_LOGIN_HOST:-<login-host>}}"
+    remote_user="${USER_FLAG:-${SITE_USER:-<your-user>}}"
+    remote_dir="${REMOTE_DIR_FLAG:-${SITE_REMOTE_DIR:-<umbrella-folder-on-the-cluster>}}"
+    remote_dir="${remote_dir%/}"
+    # Values from site/local.env get the same checks as the flags (the placeholders pass).
+    if [[ ! "$cluster_name" =~ ^[A-Za-z0-9_.-]+$ ]]; then
+        echo "install.sh: SBATCHMAN_CLUSTER_NAME may only contain letters, digits, '_', '.' and '-'" >&2
+        exit 2
+    fi
+    if [[ "$login_host" != "<login-host>" && ! "$login_host" =~ ^[A-Za-z0-9.-]+$ ]]; then
+        echo "install.sh: SITE_LOGIN_HOST may only contain letters, digits, '.' and '-'" >&2
+        exit 2
+    fi
+    if [[ "$remote_user" != "<your-user>" && ! "$remote_user" =~ ^[A-Za-z0-9._-]+$ ]]; then
+        echo "install.sh: SITE_USER may only contain letters, digits, '.', '_' and '-'" >&2
+        exit 2
+    fi
+    if [[ "$remote_dir" != "<umbrella-folder-on-the-cluster>" && ! "$remote_dir" =~ ^[A-Za-z0-9._/~-]+$ ]]; then
+        echo "install.sh: SITE_REMOTE_DIR may only contain letters, digits, '.', '_', '/', '~' and '-'" >&2
+        exit 2
+    fi
+    # The umbrella's own path goes into TOML basic strings: escape backslash and quote.
+    toml_root="${ROOT//\\/\\\\}"
+    toml_root="${toml_root//\"/\\\"}"
+
+    benchmark_names=()
+    for dir in "$ROOT"/benchmarks/*/; do
+        [[ -d "$dir" ]] || continue
+        dir="${dir%/}"
+        benchmark_names+=("${dir##*/}")
+    done
+
+    cat <<EOF
+
+== crab web: add the cluster
+In crab web, open Remotes and press "+ Add cluster", then type these values:
+  Name: $cluster_name
+  Transport: ssh
+  Host: $login_host
+  User: $remote_user
+  Port: 22
+  Auth: agent (ssh-agent / cert)
+  Host key: insecure (rotating login nodes)
+  Install dir: $remote_dir
+  Crab command: (leave empty)
+  Preset: (leave empty)
+Start crab web from the shell that has your ssh agent (the certificate login), because the agent is found through SSH_AUTH_SOCK.
+Never press "Install CRAB" for this cluster: the umbrella already installed it, and the button would add a second, separate CRAB.
+
+== sbatchman fetch: results to this laptop (not yet tested on Leonardo)
+Save this as ~/.config/sbatchman/remotes-config.toml (merge by hand if the file exists):
+--- remotes-config.toml ---
+[global]
+local_base = "$toml_root/benchmarks"
+transfer_backend = "rsync"
+fetch_excludes = ["scratch"]
+
+[[clusters]]
+name = "$cluster_name"
+host = "$login_host"
+port = 22
+user = "$remote_user"
+EOF
+    for name in ${benchmark_names[@]+"${benchmark_names[@]}"}; do
+        cat <<EOF
+
+[[clusters.fetch_dirs]]
+remote = "$remote_dir/benchmarks/$name/SbatchMan"
+local = "$toml_root/benchmarks/$name/SbatchMan"
+EOF
+    done
+    cat <<EOF
+--- end ---
+
+== start the tools
+source env.sh
+crab web          # dashboard, http://127.0.0.1:8899
+cd benchmarks/${benchmark_names[0]:-<benchmark>} && sbatchman fetch && sbatchman visualize   # plots, http://127.0.0.1:8765
+EOF
 fi
