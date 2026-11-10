@@ -78,8 +78,8 @@ def test_no_undecided_repo_name_in_tracked_text():
     for name in _tracked_files():
         if name == ".gitmodules" or name in submodule_paths:
             continue
-        if name == "tests/test_layout.py":
-            continue
+        if name in ("tests/test_layout.py", "tests/test_readme.py"):
+            continue  # both tests list the forbidden words themselves
         try:
             text = (ROOT / name).read_text()
         except (UnicodeDecodeError, OSError):
