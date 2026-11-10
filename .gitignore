@@ -1,0 +1,7 @@
+env.sh
+.local/
+site/local.env
+results/
+__pycache__/
+.pytest_cache/
+*.log

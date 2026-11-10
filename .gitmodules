@@ -1,0 +1,7 @@
+[submodule "CRAB"]
+	path = CRAB
+	url = https://github.com/HLC-Lab/CRAB.git
+	branch = sbatchman
+[submodule "crab-wrappers"]
+	path = crab-wrappers
+	url = https://github.com/HLC-Lab/crab-wrappers.git
