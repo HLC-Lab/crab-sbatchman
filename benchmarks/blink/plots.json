@@ -1,0 +1,53 @@
+{
+  "version": 3,
+  "activeTabIndex": 0,
+  "tabs": [
+    {
+      "version": 3,
+      "label": "Baseline vs noise",
+      "mode": "grid",
+      "rendererBackend": "matplotlib",
+      "database": "data",
+      "sql": "SELECT CASE WHEN experiment LIKE '%noise' THEN 'noise' ELSE 'baseline' END AS state, var_nodes, msg_size, AVG(\"0_Avg-Duration_s\") * 1000.0 AS avg_duration_ms FROM app_0 GROUP BY state, var_nodes, msg_size ORDER BY msg_size, var_nodes, state",
+      "plotType": "bar",
+      "chartTitle": "Blink victim: baseline vs noise",
+      "x": "msg_size",
+      "y": [
+        "avg_duration_ms"
+      ],
+      "group": [
+        "state",
+        "var_nodes"
+      ],
+      "xLabel": "Message size (bytes)",
+      "yLabel": "Average duration (ms)",
+      "showLegend": true,
+      "legendTitle": "State"
+    },
+    {
+      "version": 3,
+      "label": "Per repetition",
+      "mode": "grid",
+      "rendererBackend": "matplotlib",
+      "database": "data",
+      "sql": "SELECT substr(experiment, 1, instr(experiment, '_') - 1) AS rep, CASE WHEN experiment LIKE '%noise' THEN 'noise' ELSE 'baseline' END AS state, var_nodes, msg_size, AVG(\"0_Avg-Duration_s\") * 1000.0 AS avg_duration_ms FROM app_0 WHERE instr(experiment, '_') > 0 GROUP BY rep, state, var_nodes, msg_size ORDER BY length(rep), rep, state",
+      "plotType": "bar",
+      "chartTitle": "Blink victim: average duration per repetition",
+      "x": "rep",
+      "y": [
+        "avg_duration_ms"
+      ],
+      "group": [
+        "state",
+        "var_nodes",
+        "msg_size"
+      ],
+      "xLabel": "Repetition",
+      "yLabel": "Average duration (ms)",
+      "showLegend": true,
+      "legendTitle": "State"
+    }
+  ],
+  "style": {},
+  "script_paths": []
+}
