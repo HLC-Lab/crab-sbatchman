@@ -2,7 +2,7 @@
 
 ## Before you start
 
-- A login on a Slurm cluster.
+- A login on Leonardo. The shipped Slurm configuration is for that cluster.
 - Python 3.10 or newer. On a cluster this is a module, such as `module load python`.
 - git.
 - A Slurm account you can charge.
@@ -25,7 +25,7 @@ Replace the placeholders:
 - `<umbrella-dir>` with the folder the clone creates.
 - `<YOUR_ACCOUNT>` with the Slurm account to charge.
 
-The installer saves the account, so later runs need no `--account`. Run `source env.sh` in every new shell. Add `--dry-run` to print the commands without running them.
+The installer checks the account first, with `sacctmgr` when it is on `PATH`. Add `--skip-account-check` if the lookup is wrong for your site. The installer saves the account, so later runs need no `--account`. Run `source env.sh` in every new shell. Add `--dry-run` to print the commands without running them.
 
 The install ends with a self-check that submits no job. A pass prints `install.sh: all checks passed`. If a check fails, see [Troubleshooting](troubleshooting.md).
 
