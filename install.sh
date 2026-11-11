@@ -487,6 +487,55 @@ check_jobs_file() {
     check_ok "jobs file $rel passes crab validate ($count config(s))"
 }
 
+# The dry-run launch writes into the SbatchMan project it finds (the configs of the cluster and
+# its cache), so it runs in a throw-away copy: the benchmark's real project stays as it is.
+CHECK_TMP=""
+
+# Removes the copy: exactly the folder mktemp made, never an empty name.
+check_cleanup() {
+    if [[ -n "$CHECK_TMP" ]]; then
+        rm -rf "$CHECK_TMP"
+    fi
+    CHECK_TMP=""
+}
+
+# dry_run_launch_in_copy: runs `sbatchman init` and `sbatchman launch -f smoke.yaml --dry-run` in a
+# temporary copy that holds the smoke jobs file and a link to .local (the jobs file's relative
+# "configs:" line still reaches the filled configs file). Sets LAUNCH_OUT to the output and returns
+# the status. The copy is removed when the launch ends, fails, or the script is interrupted.
+dry_run_launch_in_copy() {
+    local copy status=0
+    LAUNCH_OUT=""
+    trap check_cleanup EXIT
+    trap 'exit 130' INT
+    trap 'exit 143' TERM
+    if ! CHECK_TMP="$(mktemp -d "${TMPDIR:-/tmp}/crab-umbrella-check.XXXXXX")"; then
+        CHECK_TMP=""
+        LAUNCH_OUT="cannot create a temporary folder under ${TMPDIR:-/tmp}"
+        status=1
+    else
+        copy="$CHECK_TMP/benchmarks/blink"
+        if LAUNCH_OUT="$(
+            export PATH="$VENV_BIN:$PATH" SBATCHMAN_CLUSTER_NAME="$cluster_name" CRAB_PATH_WRAPPERS="$ROOT/crab-wrappers"
+            {
+                mkdir -p "$copy" &&
+                    cp "$SMOKE_DIR/$SMOKE_FILE" "$copy/$SMOKE_FILE" &&
+                    ln -s "$ROOT/.local" "$CHECK_TMP/.local" &&
+                    cd "$copy" &&
+                    "$VENV_BIN/sbatchman" init &&
+                    "$VENV_BIN/sbatchman" launch -f "$SMOKE_FILE" --dry-run
+            } 2>&1
+        )"; then
+            status=0
+        else
+            status=1
+        fi
+    fi
+    check_cleanup
+    trap - EXIT INT TERM
+    return "$status"
+}
+
 check_install() {
     local file rel out found resolved tool problem dir workdir n=0
     echo
@@ -565,10 +614,10 @@ check_install() {
     if [[ "$ROLE" == cluster ]]; then
         if [[ ! -f "$SMOKE_DIR/$SMOKE_FILE" ]]; then
             check_fail "sbatchman launch --dry-run" "benchmarks/blink/$SMOKE_FILE is missing"
-        elif out="$(cd "$SMOKE_DIR" && PATH="$VENV_BIN:$PATH" SBATCHMAN_CLUSTER_NAME="$cluster_name" CRAB_PATH_WRAPPERS="$ROOT/crab-wrappers" "$VENV_BIN/sbatchman" launch -f "$SMOKE_FILE" --dry-run 2>&1)"; then
+        elif dry_run_launch_in_copy; then
             check_ok "sbatchman launch --dry-run on benchmarks/blink/$SMOKE_FILE (submits nothing)"
         else
-            check_fail "sbatchman launch --dry-run on benchmarks/blink/$SMOKE_FILE" "$(one_line "$out")"
+            check_fail "sbatchman launch --dry-run on benchmarks/blink/$SMOKE_FILE" "$(one_line "$LAUNCH_OUT")"
         fi
     fi
 

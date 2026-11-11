@@ -7,9 +7,11 @@ import hashlib
 import json
 import os
 import shutil
+import signal
 import stat
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -101,11 +103,36 @@ STUB_SBATCHMAN = """\
 #!/bin/sh
 if [ "$1" = init ]; then
   mkdir -p SbatchMan/configs SbatchMan/experiments
-  echo "$PWD" >> "@LOG@/sbatchman.log"
+  # The self-check's init (in its temporary copy) goes to its own log: sbatchman.log counts
+  # the real projects only.
+  case "$PWD" in
+    *crab-umbrella-check.*) echo "$PWD" >> "@LOG@/check-init.log" ;;
+    *) echo "$PWD" >> "@LOG@/sbatchman.log" ;;
+  esac
 fi
 if [ "$1" = launch ]; then
   echo "$PWD: $*" >> "@LOG@/launch.log"
   echo "SBATCHMAN_CLUSTER_NAME=$SBATCHMAN_CLUSTER_NAME" >> "@LOG@/launch.log"
+  echo "PWD_P=$(pwd -P)" >> "@LOG@/launch.log"
+  # Like the real launch: the configs file named by the jobs file's configs: line (relative to
+  # the jobs file) is loaded, and the project found from here gets the files it writes.
+  cfg="$(sed -n 's/^configs: *//p' "$3")"
+  resolved="$(cd "$(dirname "$cfg")" 2>/dev/null && printf '%s/%s' "$(pwd -P)" "$(basename "$cfg")")"
+  if [ -z "$cfg" ] || [ -f "$resolved" ]; then
+    echo "CONFIGS=$resolved" >> "@LOG@/launch.log"
+  else
+    echo "CONFIGS=missing" >> "@LOG@/launch.log"
+    echo "stub: no configs file" >&2
+    exit 1
+  fi
+  mkdir -p "SbatchMan/configs/$SBATCHMAN_CLUSTER_NAME" SbatchMan/configs/.source_cache
+  echo "stub" > "SbatchMan/configs/$SBATCHMAN_CLUSTER_NAME/crab_run_2.sh"
+  echo "stub" > SbatchMan/configs/configurations.yaml
+  echo "{}" > SbatchMan/configs/.source_cache/stub.cache
+  if [ -n "$STUB_LAUNCH_HANG" ]; then
+    echo "hanging" > "$STUB_LAUNCH_HANG"
+    sleep 30
+  fi
   if [ -n "$STUB_LAUNCH_FAIL" ]; then
     echo "stub: no configs file" >&2
     exit 1
@@ -141,6 +168,7 @@ LOGS = {
     "make-env.log",
     "sbatchman.log",
     "launch.log",
+    "check-init.log",
     "validate-wrappers",
     "crab.log",
 }
@@ -428,7 +456,7 @@ def test_check_cluster_run_prints_ok_for_every_check(tmp_path):
     }
     assert (tmp_path / "validate-wrappers").read_text().strip() == str(root / "crab-wrappers")
     launch = (tmp_path / "launch.log").read_text()
-    assert f"{root / 'benchmarks' / 'blink'}: launch -f smoke.yaml --dry-run" in launch
+    assert ": launch -f smoke.yaml --dry-run" in launch
     assert "SBATCHMAN_CLUSTER_NAME=leonardo" in launch
     assert not any(call.split()[0] == "setup" for call in crab_calls(tmp_path))
 
@@ -515,6 +543,153 @@ def test_check_leaves_no_temporary_files_in_the_umbrella(tmp_path):
     first = run_install(root, "--account", "TESTACCT")
     assert first.returncode == 0, first.stderr
     assert not list(root.rglob("*.json"))
+
+
+def launch_log(tmp_path: Path) -> dict[str, str]:
+    """The stub launch's log as {key: value} (PWD_P, CONFIGS, SBATCHMAN_CLUSTER_NAME)."""
+    out = {}
+    for line in (tmp_path / "launch.log").read_text().splitlines():
+        key, sep, value = line.partition("=")
+        if sep and key.isidentifier():
+            out[key] = value
+    return out
+
+
+def sbatchman_trees(root: Path) -> list[str]:
+    return sorted(p for p in listing(root) if "/SbatchMan" in p)
+
+
+def test_the_dry_run_launch_leaves_the_real_sbatchman_projects_untouched(tmp_path):
+    (tmp_path / "a").mkdir()
+    (tmp_path / "b").mkdir()
+    with_check = make_umbrella(tmp_path / "a")
+    without_check = make_umbrella(tmp_path / "b")
+    assert run_install(with_check, "--account", "TESTACCT").returncode == 0
+    assert run_install(without_check, "--account", "TESTACCT", "--no-check").returncode == 0
+    assert sbatchman_trees(with_check) == sbatchman_trees(without_check)
+    assert listing(with_check) == listing(without_check)
+    assert not list((with_check / "benchmarks").glob("*/SbatchMan/configs/*/*"))
+
+
+def test_the_dry_run_launch_runs_in_a_temporary_copy_with_the_same_jobs_file(tmp_path):
+    root = make_umbrella(tmp_path)
+    result = run_install(root, "--account", "TESTACCT")
+    assert result.returncode == 0, result.stderr
+    log = launch_log(tmp_path)
+    ran_in = Path(log["PWD_P"])
+    assert ran_in != (root / "benchmarks" / "blink").resolve()
+    assert root not in ran_in.parents
+    assert ran_in.parts[-2:] == ("benchmarks", "blink")
+    # The relative configs: line still reaches the umbrella's filled copy.
+    assert log["CONFIGS"] == str(root / ".local" / "configs.leonardo.yaml")
+    assert (root / ".local" / "configs.leonardo.yaml").is_file()
+    assert log["SBATCHMAN_CLUSTER_NAME"] == "leonardo"
+
+
+def test_the_temporary_copy_gets_its_own_sbatchman_init_and_the_real_ones_stay_two(tmp_path):
+    root = make_umbrella(tmp_path)
+    result = run_install(root, "--account", "TESTACCT")
+    assert result.returncode == 0, result.stderr
+    inits = (tmp_path / "check-init.log").read_text().splitlines()
+    assert len(inits) == 1
+    assert Path(inits[0]).parts[-2:] == ("benchmarks", "blink")
+    assert Path(inits[0]).resolve() == Path(launch_log(tmp_path)["PWD_P"])
+    real = (tmp_path / "sbatchman.log").read_text().splitlines()
+    assert sorted(Path(line).name for line in real) == ["blink", "qe"]
+
+
+def test_the_temporary_copy_holds_only_the_jobs_file_and_the_local_link(tmp_path):
+    root = make_umbrella(tmp_path)
+    (root / "benchmarks" / "blink" / "extra.txt").write_text("not copied")
+    probe = tmp_path / "probe"
+    stub = root / "CRAB" / "stub" / "sbatchman"
+    stub.write_text(
+        stub.read_text().replace(
+            'echo "PWD_P=$(pwd -P)"',
+            f'(cd ../.. && find . | sort > "{probe}"); echo "PWD_P=$(pwd -P)"',
+        )
+    )
+    result = run_install(root, "--account", "TESTACCT")
+    assert result.returncode == 0, result.stderr
+    entries = [
+        e for e in probe.read_text().splitlines() if not e.startswith("./benchmarks/blink/SbatchMan")
+    ]
+    assert sorted(entries) == sorted([
+        ".",
+        "./.local",
+        "./benchmarks",
+        "./benchmarks/blink",
+        "./benchmarks/blink/smoke.yaml",
+    ])
+
+
+def temp_check_dirs(folder: Path) -> list[str]:
+    return sorted(p.name for p in folder.iterdir())
+
+
+def test_the_temporary_directory_is_gone_after_a_passing_check(tmp_path):
+    root = make_umbrella(tmp_path)
+    temp = tmp_path / "temp"
+    temp.mkdir()
+    result = run_install(root, "--account", "TESTACCT", env_extra={"TMPDIR": str(temp)})
+    assert result.returncode == 0, result.stderr
+    assert Path(launch_log(tmp_path)["PWD_P"]).is_relative_to(temp.resolve())
+    assert temp_check_dirs(temp) == []
+
+
+def test_the_temporary_directory_is_gone_after_a_failing_check(tmp_path):
+    root = make_umbrella(tmp_path)
+    temp = tmp_path / "temp"
+    temp.mkdir()
+    result = run_install(
+        root,
+        "--account",
+        "TESTACCT",
+        env_extra={"TMPDIR": str(temp), "STUB_LAUNCH_FAIL": "1"},
+    )
+    assert result.returncode == 1
+    assert Path(launch_log(tmp_path)["PWD_P"]).is_relative_to(temp.resolve())
+    assert temp_check_dirs(temp) == []
+
+
+def test_the_temporary_directory_is_gone_after_the_script_is_interrupted(tmp_path):
+    root = make_umbrella(tmp_path)
+    temp = tmp_path / "temp"
+    temp.mkdir()
+    hang = tmp_path / "hang-marker"
+    env = dict(os.environ)
+    env.pop("PYTHONPATH", None)
+    env.update({"TMPDIR": str(temp), "STUB_LAUNCH_HANG": str(hang)})
+    env["PATH"] = os.pathsep.join(
+        d for d in env["PATH"].split(os.pathsep) if not os.access(Path(d) / "sacctmgr", os.X_OK)
+    )
+    for name in ("SLURM_ACCOUNT", "SBATCHMAN_VERSION", "PIP_NO_INDEX", "PIP_FIND_LINKS", "WHEELHOUSE"):
+        env.pop(name, None)
+    proc = subprocess.Popen(
+        [str(root / "install.sh"), "--account", "TESTACCT"],
+        cwd=root.parent,
+        env=env,
+        stdin=subprocess.DEVNULL,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        start_new_session=True,
+    )
+    try:
+        for _ in range(300):
+            if hang.exists():
+                break
+            time.sleep(0.1)
+        assert hang.exists(), "the stub launch never started"
+        assert temp_check_dirs(temp) != []
+        # The process group is the one this test just started (start_new_session).
+        os.killpg(proc.pid, signal.SIGTERM)
+        proc.communicate(timeout=30)
+    finally:
+        if proc.poll() is None:
+            os.killpg(proc.pid, signal.SIGKILL)
+            proc.communicate()
+    assert temp_check_dirs(temp) == []
 
 
 def test_check_failed_validate_names_the_file_and_later_checks_still_run(tmp_path):
