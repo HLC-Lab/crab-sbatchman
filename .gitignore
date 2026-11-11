@@ -7,3 +7,4 @@ __pycache__/
 *.log
 benchmarks/*/SbatchMan/
 !tests/fixtures/results/
+tests/forbidden-words.txt

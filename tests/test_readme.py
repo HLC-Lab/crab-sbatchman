@@ -7,6 +7,8 @@ import re
 import subprocess
 from pathlib import Path
 
+from forbidden import forbidden_or_skip
+
 ROOT = Path(__file__).resolve().parent.parent
 README = ROOT / "README.md"
 
@@ -23,11 +25,9 @@ HEADINGS = [
     "Known limits",
 ]
 
+# Project names that are not decided yet. The personal words (account, user, host names) are in
+# the untracked tests/forbidden-words.txt, see tests/forbidden.py.
 FORBIDDEN = (
-    "ACCOUNT_PREFIX",
-    "USER_PREFIX",
-    "SITE_PREFIX",
-    "HOME_GROUP",
     "crab-suite",
     "net4exa",
 )
@@ -117,6 +117,12 @@ def test_no_forbidden_string_and_the_placeholders_are_there():
     assert "<umbrella-dir>" in text
 
 
+def test_the_readme_has_none_of_the_personal_words():
+    text = _text()
+    for word in forbidden_or_skip():
+        assert word not in text, word
+
+
 def test_troubleshooting_table_has_the_header_and_the_agreed_rows():
     section = _section("Troubleshooting")
     assert "| Symptom | Cause | Fix |" in section
@@ -144,7 +150,7 @@ def test_every_top_level_tracked_path_is_named():
     listing = subprocess.run(
         ["git", "ls-files"], cwd=ROOT, capture_output=True, text=True, check=True
     ).stdout
-    skip = {"tests", ".gitignore", ".gitmodules", "README.md"}
+    skip = {"tests", ".gitignore", ".gitmodules", "README.md", "pytest.ini"}
     top = {line.split("/", 1)[0] for line in listing.splitlines() if line}
     text = _text()
     missing = sorted(name for name in top - skip if name not in text)

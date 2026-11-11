@@ -5,6 +5,8 @@ import re
 import subprocess
 from pathlib import Path
 
+from forbidden import forbidden_or_skip
+
 ROOT = Path(__file__).resolve().parent.parent
 
 
@@ -50,12 +52,11 @@ def test_tracked_folders_exist_and_site_file_has_placeholder():
         assert (ROOT / folder).is_dir(), folder
     leonardo = (ROOT / "site" / "leonardo.env").read_text()
     assert "<YOUR_ACCOUNT>" in leonardo
-    assert "ACCOUNT_PREFIX" not in leonardo
 
 
 def test_gitignore_has_local_files():
     lines = (ROOT / ".gitignore").read_text().splitlines()
-    for entry in ("env.sh", ".local/", "site/local.env"):
+    for entry in ("env.sh", ".local/", "site/local.env", "tests/forbidden-words.txt"):
         assert entry in lines, entry
 
 
@@ -85,3 +86,50 @@ def test_no_undecided_repo_name_in_tracked_text():
         except (UnicodeDecodeError, OSError):
             continue
         assert not forbidden.search(text), name
+
+
+def _tracked_text() -> list[tuple[str, str]]:
+    """(name, text) of every tracked text file except the submodules (gitlinks are folders)."""
+    found = []
+    for name in _tracked_files():
+        try:
+            found.append((name, (ROOT / name).read_text()))
+        except (UnicodeDecodeError, OSError):
+            continue
+    return found
+
+
+def test_no_tracked_text_file_has_a_personal_word():
+    words = forbidden_or_skip()
+    texts = _tracked_text()
+    assert len(texts) > 20
+    for name, text in texts:
+        for word in words:
+            assert word.lower() not in text.lower(), f"{word!r} in {name}"
+
+
+# Written as joined pieces so that this file does not match its own patterns.
+CLUSTER_PATH = re.compile(
+    "/leonardo" + r"/home/[^/\s]+/" + "|/leonardo" + "_work/" + "|/leonardo" + "/pub/"
+)
+EMAIL = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}")
+NOREPLY = "@users.noreply.github.com"
+
+
+def test_no_tracked_text_file_has_a_cluster_home_path_or_a_real_email():
+    texts = _tracked_text()
+    assert len(texts) > 20
+    for name, text in texts:
+        assert not CLUSTER_PATH.search(text), f"a cluster home or work path in {name}"
+        for match in EMAIL.finditer(text):
+            assert match.group(0).endswith(NOREPLY), f"{match.group(0)!r} in {name}"
+
+
+def test_the_path_and_email_patterns_catch_what_they_should():
+    home = "/leonardo" + "/home/userexample/CRAB"
+    assert CLUSTER_PATH.search(home)
+    assert CLUSTER_PATH.search("/leonardo" + "_work/ACCOUNT/x")
+    assert CLUSTER_PATH.search("/leonardo" + "/pub/x")
+    assert not CLUSTER_PATH.search("/opt/umbrella/CRAB")
+    assert EMAIL.search("write to someone" + "@example.org now")
+    assert EMAIL.search("12345+name" + NOREPLY).group(0).endswith(NOREPLY)

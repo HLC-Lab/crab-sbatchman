@@ -14,6 +14,7 @@ from typing import Any
 
 import pytest
 import yaml
+from forbidden import forbidden_or_skip
 
 REPO = Path(__file__).resolve().parent.parent
 BENCHMARKS = REPO / "benchmarks"
@@ -37,7 +38,6 @@ QE_INPUTS = [
 
 CONFIGS_PATH = "../../.local/configs.leonardo.yaml"
 TOKENS = {"<YOUR_ACCOUNT>", "<SLURM_PARTITION>", "<SLURM_QOS>", "<CRAB_DIR>"}
-FORBIDDEN = ("ACCOUNT_PREFIX", "USER_PREFIX", "SITE_PREFIX")
 # A quoted heredoc (<<'JSON') keeps the text as it is; the QE files use an unquoted one (<<JSON)
 # so the shell expands $SBATCHMAN_WD in the input paths.
 HEREDOC = re.compile(r"<<'?JSON'?\n(.*?)\nJSON\n", re.DOTALL)
@@ -119,11 +119,12 @@ def test_no_unfilled_token_in_a_jobs_file_or_readme(path: Path) -> None:
 
 
 def test_no_real_account_host_or_user_under_benchmarks_or_configs() -> None:
+    words = forbidden_or_skip()
     files = [*_all_files(BENCHMARKS), *_all_files(REPO / "configs")]
     assert len(files) > 10
     for path in files:
         text = path.read_text(errors="replace")
-        for word in FORBIDDEN:
+        for word in words:
             assert word not in text, f"{word!r} in {path}"
 
 
