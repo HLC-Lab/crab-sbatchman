@@ -234,3 +234,61 @@ def test_qe_average_tab_is_a_bar_chart_of_the_mean_per_tag_and_state() -> None:
     assert row["tag"] == "qe-alone-2n"
     assert row["state"] == "baseline"
     assert row["avg_wall_time_s"] == pytest.approx(17.78)
+
+
+def test_blink_baseline_vs_noise_tab_keeps_jobs_apart_by_tag() -> None:
+    tab = _workspace("blink")["tabs"][0]
+    select, _, rest = tab["sql"].partition(" FROM ")
+    group_by = rest.split(" GROUP BY ", 1)[1].split(" ORDER BY ", 1)[0]
+
+    assert "tag" in [part.strip() for part in select.split(",")]
+    assert "tag" in [part.strip() for part in group_by.split(",")]
+    assert "tag" in tab["group"]
+
+
+def test_blink_baseline_vs_noise_tab_does_not_average_two_jobs_together() -> None:
+    tab = _workspace("blink")["tabs"][0]
+    connection = _database("blink")
+    connection.execute("CREATE TABLE other AS SELECT * FROM app_0")
+    connection.execute("UPDATE other SET tag = 'other-job', \"0_Avg-Duration_s\" = \"0_Avg-Duration_s\" * 100")
+    connection.execute("INSERT INTO app_0 SELECT * FROM other")
+
+    cursor = connection.execute(tab["sql"])
+    columns = [c[0] for c in cursor.description]
+    by_tag: dict[str, list[float]] = {}
+    for row in cursor.fetchall():
+        by_tag.setdefault(row[columns.index("tag")], []).append(row[columns.index("avg_duration_ms")])
+
+    assert set(by_tag) == {"blink-noise-4n-1048576B", "other-job"}
+    assert max(by_tag["blink-noise-4n-1048576B"]) < 10 < min(by_tag["other-job"])
+
+
+def test_blink_per_repetition_tab_keeps_jobs_apart_by_tag() -> None:
+    tab = _workspace("blink")["tabs"][1]
+    select, _, rest = tab["sql"].partition(" FROM ")
+    group_by = rest.split(" GROUP BY ", 1)[1].split(" ORDER BY ", 1)[0]
+
+    assert "tag" in [part.strip() for part in select.split(",")]
+    assert "tag" in [part.strip() for part in group_by.split(",")]
+    assert "tag" in tab["group"]
+
+
+def test_blink_per_repetition_tab_does_not_average_two_jobs_together() -> None:
+    tab = _workspace("blink")["tabs"][1]
+    connection = _database("blink")
+    connection.execute("CREATE TABLE other AS SELECT * FROM app_0")
+    connection.execute(
+        "UPDATE other SET tag = 'other-job', \"0_Avg-Duration_s\" = \"0_Avg-Duration_s\" * 100"
+    )
+    connection.execute("INSERT INTO app_0 SELECT * FROM other")
+
+    cursor = connection.execute(tab["sql"])
+    columns = [c[0] for c in cursor.description]
+    by_tag: dict[str, list[float]] = {}
+    for row in cursor.fetchall():
+        by_tag.setdefault(row[columns.index("tag")], []).append(
+            row[columns.index("avg_duration_ms")]
+        )
+
+    assert set(by_tag) == {"blink-noise-4n-1048576B", "other-job"}
+    assert max(by_tag["blink-noise-4n-1048576B"]) < 10 < min(by_tag["other-job"])
