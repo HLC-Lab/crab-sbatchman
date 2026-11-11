@@ -1,0 +1,58 @@
+# A SbatchMan jobs file for one app, <app>, run by CRAB, with the CRAB JSON it writes embedded.
+# Copy it into a benchmark folder, rename it, edit the lines marked Change. As is, it runs the
+# Blink all-to-all on 2 nodes, so it passes `crab validate` unedited.
+#
+# CRAB JSON keys (JSON has no comments, so they are described here):
+#   schema_version: the format of the file. Change: nothing, keep 2.
+#   global_options.numnodes: nodes of the job, filled from `nodes`. Change: nothing.
+#   global_options.ppn: ranks per node of every app. Change: the ranks per node of <app>.
+#   global_options.name: prefix of the result folder. Change: a name for the campaign.
+#   experiments.run: one experiment; more of them run in sorted name order in one job.
+#   apps."0": one app of the experiment. Change: add "1", "2" for co-running apps.
+#   path: the wrapper of the app, in the wrappers folder. Change: the wrapper of <app>.
+#   args: command-line flags of the app. Change: the flags of <app>.
+#   collect: true stores the app's metrics, false skips them. Change: false for noise apps.
+#   start: seconds after the run starts. Change: a delay, or "s0" to follow app 0.
+#   end: "" waits for the app to finish, "f" stops it when the others end. Change: "f" for noise.
+
+# The SbatchMan configs file, relative to this jobs file. Change: nothing, install.sh fills it.
+configs: ../../.local/configs.leonardo.yaml
+# The values SbatchMan substitutes for {name} placeholders, one job per combination. Change: nothing.
+variables:
+  # Node counts to submit. Change: your node counts, each needs a crab_run_<nodes> config.
+  nodes:
+    - 2
+# The jobs this file submits. Change: nothing, one job is enough for one app.
+jobs:
+  # The SbatchMan config of the job, from the configs file. Change: nothing for a CRAB run.
+  - config: crab_run_{nodes}
+    # Names the job and its result folder. Change: a short name for your campaign.
+    tag: template-{nodes}
+    # A shell script SbatchMan runs first: it writes the CRAB JSON. Change: the JSON text only.
+    preprocess: |
+      mkdir -p "$SBATCHMAN_JOB_DIR"
+      cat > "$SBATCHMAN_JOB_DIR/config.json" <<'JSON'
+      {
+        "schema_version": 2,
+        "global_options": {
+          "numnodes": "{nodes}",
+          "ppn": "4",
+          "name": "template-{nodes}"
+        },
+        "experiments": {
+          "run": {
+            "apps": {
+              "0": {
+                "path": "blink/alltoall/alltoall_b.py",
+                "args": "-msgsize 1048576 -iter 100",
+                "collect": true,
+                "start": "0",
+                "end": ""
+              }
+            }
+          }
+        }
+      }
+      JSON
+    # What runs in the job: CRAB's worker reads config.json there. Change: nothing.
+    command: crab worker --workdir "$SBATCHMAN_JOB_DIR"
