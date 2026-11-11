@@ -1,11 +1,11 @@
 # Partner umbrella (working title)
 
-CRAB benchmarks co-running HPC applications on a Slurm cluster, and SbatchMan launches the jobs. This repo
-installs both, pins matching versions of them, and ships example benchmarks you can run or copy.
+CRAB benchmarks co-running HPC applications on a Slurm cluster, and SbatchMan launches the jobs.
+This repo installs both at matching versions and ships example benchmarks.
 
 ## Install on the cluster
 
-Run this on a login node. The pages in `docs/` cover the rest; [Install](docs/install.md) also has the laptop install.
+On a login node:
 
 ```bash
 git clone --recurse-submodules <umbrella-url> <umbrella-dir>
@@ -15,14 +15,15 @@ module load python
 source env.sh
 ```
 
-- `module load python` gives Python 3.10 or newer, which CRAB needs. The installer stops with a message if it is older.
-- `./install.sh --account <YOUR_ACCOUNT>` installs CRAB and SbatchMan into `CRAB/.venv` and fills the Slurm configs
-  file with your account. It prints every command before it runs it, and it is safe to run again.
-- After `source env.sh`, `crab setup` registers the benchmarks you will run.
-- The install ends with a self-check that submits no job. It passes when it prints `install.sh: all checks passed`.
-- `source env.sh` activates the environment. Run it in every new shell.
+[Install](docs/install.md#install-on-the-cluster) explains each placeholder. The installer saves the account, so later runs need no `--account`.
+Run `source env.sh` in every new shell. A pass of the final self-check prints `install.sh: all checks passed`.
+If a check fails, see [Troubleshooting](docs/troubleshooting.md).
 
-Optional last step, to see a real job run (one all-to-all on 2 nodes, submitted to Slurm):
+## Next
+
+Register the benchmarks you run in [Register a benchmark](docs/benchmarks.md).
+
+Optional: run one job to see it work.
 
 ```bash
 cd benchmarks/blink && sbatchman launch -f smoke.yaml
@@ -31,8 +32,9 @@ cd benchmarks/blink && sbatchman launch -f smoke.yaml
 | Page | What it answers |
 |---|---|
 | [Install](docs/install.md) | How do I install the umbrella on the cluster and on my laptop? |
-| [Add your own benchmark](docs/own-benchmark.md) | How do I add an application of my own? |
+| [Register a benchmark](docs/benchmarks.md) | How do I make a benchmark's binary known to the jobs? |
+| [Write a campaign](docs/campaigns.md) | How do I describe the jobs a benchmark runs? |
 | [Launch](docs/launch.md) | How do I submit the jobs and follow them? |
 | [Results](docs/results.md) | How do I collect the results and plot them? |
 | [Troubleshooting](docs/troubleshooting.md) | What do I do when something fails? |
-| [Reference](docs/reference.md) | Which files are in the repo, and which may I change? |
+| [Reference](docs/reference.md) | Which files are in the repo, and which can I change? |

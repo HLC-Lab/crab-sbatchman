@@ -13,10 +13,11 @@ ROOT = Path(__file__).resolve().parent.parent
 README = ROOT / "README.md"
 DOCS = ROOT / "docs"
 
-PAGES = ["install", "own-benchmark", "launch", "results", "troubleshooting", "reference"]
+PAGES = ["install", "benchmarks", "campaigns", "launch", "results", "troubleshooting", "reference"]
 PAGE_PATHS = [DOCS / f"{name}.md" for name in PAGES]
 README_MAX_LINES = 60
 PAGE_MAX_LINES = 150
+INSTALL_MAX_LINES = 80
 REFERENCE_MAX_LINES = 300
 
 # The only <NAME> tokens the text may use. A later step adds a name here in the same commit as the
@@ -229,7 +230,11 @@ def test_every_docs_page_exists_with_one_h1_and_a_size_cap():
         assert page.is_file(), page.name
         text = page.read_text()
         assert _h1_count(text) == 1, page.name
-        cap = REFERENCE_MAX_LINES if page.name == "reference.md" else PAGE_MAX_LINES
+        cap = PAGE_MAX_LINES
+        if page.name == "reference.md":
+            cap = REFERENCE_MAX_LINES
+        elif page.name == "install.md":
+            cap = INSTALL_MAX_LINES
         assert len(text.splitlines()) <= cap, page.name
 
 
