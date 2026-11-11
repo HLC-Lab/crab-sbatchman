@@ -1,3 +1,3 @@
 # Results
 
-This page covers collecting the results of finished jobs and plotting them.
+Collect the results of finished jobs and plot them.

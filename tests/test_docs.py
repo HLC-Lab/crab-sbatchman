@@ -15,10 +15,29 @@ DOCS = ROOT / "docs"
 
 PAGES = ["install", "benchmarks", "campaigns", "launch", "results", "troubleshooting", "reference"]
 PAGE_PATHS = [DOCS / f"{name}.md" for name in PAGES]
+# The README fails above README_MAX_LINES; README_TARGET_LINES is the length the owner wants.
 README_MAX_LINES = 60
-PAGE_MAX_LINES = 150
-INSTALL_MAX_LINES = 80
-REFERENCE_MAX_LINES = 300
+README_TARGET_LINES = 40
+PAGE_CAPS = {
+    "install": 80,
+    "benchmarks": 100,
+    "campaigns": 100,
+    "launch": 100,
+    "results": 100,
+    "troubleshooting": 300,
+    "reference": 300,
+}
+
+# Words and phrases the prose never uses (whole words, any case). See "Writing docs" in the style guide.
+BANNED_PHRASES = (
+    "simply", "just", "easy", "easily", "please", "note that", "usually", "in order to",
+    "above", "below", "the following", "this page", "it is recommended", "may", "should",
+)  # fmt: skip
+BANNED_PHRASE_RE = re.compile(
+    r"\b(" + "|".join(p.replace(" ", r"\s+") for p in BANNED_PHRASES) + r")\b", re.IGNORECASE
+)
+# A list item that starts with bold text used as a label: `**Term:** x`, `**Term**: x`, `**Term** - x`.
+BOLD_LEAD_RE = re.compile(r"^\s*(?:[-*+]|\d+\.)\s+\*\*(?:[^*]+\*\*\s*[:\-]|[^*]*:\*\*)")
 
 # The only <NAME> tokens the text may use. A later step adds a name here in the same commit as the
 # text that needs it. Never a host, a user or an account.
@@ -75,6 +94,59 @@ def _outside_fences(text: str) -> list[str]:
         if not inside:
             lines.append(line)
     return lines
+
+
+def _inside_fences(text: str) -> list[str]:
+    """The lines of `text` that are inside a ``` fence (the fence lines are dropped)."""
+    lines = []
+    inside = False
+    for line in text.splitlines():
+        if line.lstrip().startswith("```"):
+            inside = not inside
+            continue
+        if inside:
+            lines.append(line)
+    return lines
+
+
+def dash_problems(text: str) -> list[str]:
+    """Lines with an em dash (U+2014) or an en dash (U+2013), code blocks included."""
+    return [line for line in text.splitlines() if "—" in line or "–" in line]
+
+
+def prose_problems(text: str) -> list[str]:
+    """Banned words and phrases (lowercase) in the text outside fences, inline code and link targets."""
+    prose = []
+    for line in _outside_fences(text):
+        line = re.sub(r"(`+).+?\1", " ", line)
+        prose.append(re.sub(r"\]\([^)]*\)", "] ", line))
+    found = BANNED_PHRASE_RE.findall("\n".join(prose))
+    return [re.sub(r"\s+", " ", word.lower()) for word in found]
+
+
+def bold_lead_problems(text: str) -> list[str]:
+    """List items that start with bold text used as a label."""
+    return [line for line in _outside_fences(text) if BOLD_LEAD_RE.match(line)]
+
+
+def prompt_problems(text: str) -> list[str]:
+    """Lines inside code fences that start with a `$ ` prompt."""
+    return [line.strip() for line in _inside_fences(text) if line.lstrip().startswith("$ ")]
+
+
+def heading_problems(text: str) -> list[str]:
+    """Headings that end with a period or colon, or whose first character is a lowercase letter."""
+    problems = []
+    for line in _outside_fences(text):
+        match = re.match(r"#{1,6}\s+(.*?)\s*#*\s*$", line)
+        if not match:
+            continue
+        heading = match.group(1)
+        if heading.endswith((".", ":")):
+            problems.append(f"{heading}: ends with a period or colon")
+        if heading[:1].islower():
+            problems.append(f"{heading}: does not start with an uppercase letter")
+    return problems
 
 
 def _slug(heading: str) -> str:
@@ -218,7 +290,8 @@ def _tracked_top_level() -> set[str]:
 
 def test_readme_is_short_has_one_h1_and_links_every_page():
     text = README.read_text()
-    assert len(text.splitlines()) <= README_MAX_LINES
+    lines = len(text.splitlines())
+    assert lines <= README_MAX_LINES, f"{lines} lines, over {README_MAX_LINES} (target {README_TARGET_LINES})"
     assert _h1_count(text) == 1
     linked = {(ROOT / t.split("#", 1)[0]).resolve() for t in _link_targets(text)}
     for page in PAGE_PATHS:
@@ -230,12 +303,7 @@ def test_every_docs_page_exists_with_one_h1_and_a_size_cap():
         assert page.is_file(), page.name
         text = page.read_text()
         assert _h1_count(text) == 1, page.name
-        cap = PAGE_MAX_LINES
-        if page.name == "reference.md":
-            cap = REFERENCE_MAX_LINES
-        elif page.name == "install.md":
-            cap = INSTALL_MAX_LINES
-        assert len(text.splitlines()) <= cap, page.name
+        assert len(text.splitlines()) <= PAGE_CAPS[page.stem], page.name
 
 
 def test_relative_links_resolve_and_anchors_match_a_heading():
@@ -303,3 +371,99 @@ def test_the_guards_catch_what_they_should(tmp_path):
     assert path_problems(bad) == ["docs/does-not-exist.md"]
     assert _slug("Some Heading, here") == "some-heading-here"
     assert _h1_count("# One\n```\n# not a heading\n```\n# Two\n") == 2
+
+
+def test_no_em_or_en_dash():
+    for path in _all_docs():
+        assert dash_problems(path.read_text()) == [], path.name
+
+
+def test_prose_has_no_filler_or_hedge_words():
+    for path in _all_docs():
+        assert prose_problems(path.read_text()) == [], path.name
+
+
+def test_no_bold_lead_in_bullets():
+    for path in _all_docs():
+        assert bold_lead_problems(path.read_text()) == [], path.name
+
+
+def test_no_shell_prompt_in_code_blocks():
+    for path in _all_docs():
+        assert prompt_problems(path.read_text()) == [], path.name
+
+
+def test_headings_start_uppercase_and_do_not_end_with_a_period_or_colon():
+    for path in _all_docs():
+        assert heading_problems(path.read_text()) == [], path.name
+
+
+def test_the_writing_rule_checks_catch_what_they_should():
+    em, en = "—", "–"
+    assert dash_problems(f"A pair {em} of words.\n```\nin {en} a block\n```\n") == [
+        f"A pair {em} of words.",
+        f"in {en} a block",
+    ]
+    assert dash_problems("A hyphen-ated word and a - dash.\n") == []
+
+    bad_prose = (
+        "Simply run it. Just run it. It is easy, easily done. Please wait.\n"
+        "Note that you\n"
+        "usually run it in order to see the output above and below.\n"
+        "See the following list. This page says it is recommended that you may, or should.\n"
+    )
+    found = prose_problems(bad_prose)
+    expected = [
+        "simply", "just", "easy", "easily", "please", "note that", "usually", "in order to",
+        "above", "below", "the following", "this page", "it is recommended", "may", "should",
+    ]  # fmt: skip
+    assert sorted(found) == sorted(expected)
+    good_prose = (
+        "Run `just build` and read `the following` and `may`.\n"
+        "```\nsimply just should\n```\n"
+        "The adjustment is mayhem-free: justice, easier and shoulder are other words.\n"
+    )
+    assert prose_problems(good_prose) == []
+
+    bad_bold = (
+        "- **Label:** text\n"
+        "- **Label**: text\n"
+        "  * **Label** - text\n"
+        "1. **Label:** text\n"
+    )
+    assert len(bold_lead_problems(bad_bold)) == 4
+    good_bold = (
+        "- Open **Remotes** and press **+ Add cluster**.\n"
+        "2. Press **Save** now.\n"
+        "**Bold** at the start of a paragraph: fine.\n"
+        "```\n- **Label:** text\n```\n"
+    )
+    assert bold_lead_problems(good_bold) == []
+
+    bad_prompt = "```bash\n$ ./install.sh\n  $ source env.sh\n```\n"
+    assert prompt_problems(bad_prompt) == ["$ ./install.sh", "$ source env.sh"]
+    good_prompt = "Costs $ 5 outside.\n```bash\n./install.sh\necho $HOME\necho \"$ x\"\n```\n"
+    assert prompt_problems(good_prompt) == []
+
+    bad_headings = "# Title.\n## Ends with colon:\n### lowercase start\n#### Fine heading\n"
+    assert heading_problems(bad_headings) == [
+        "Title.: ends with a period or colon",
+        "Ends with colon:: ends with a period or colon",
+        "lowercase start: does not start with an uppercase letter",
+    ]
+    good_headings = '# Install\n## `crab web` fails\n### "wrappers/ is missing"\n```\n# comment.\n```\n'
+    assert heading_problems(good_headings) == []
+
+
+def test_the_page_caps_hold_and_never_loosen():
+    assert README_MAX_LINES == 60 and README_TARGET_LINES == 40
+    assert PAGE_CAPS == {
+        "install": 80,
+        "benchmarks": 100,
+        "campaigns": 100,
+        "launch": 100,
+        "results": 100,
+        "troubleshooting": 300,
+        "reference": 300,
+    }
+    assert set(PAGE_CAPS) == set(PAGES)

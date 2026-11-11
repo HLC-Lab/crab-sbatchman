@@ -1,3 +1,3 @@
 # Launch
 
-This page covers submitting the jobs of a benchmark and following them in the queue.
+Submit the jobs of a benchmark and follow them in the queue.

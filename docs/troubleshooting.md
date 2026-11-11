@@ -1,3 +1,3 @@
 # Troubleshooting
 
-This page lists the failures you may meet, with their cause and fix.
+Look up a failure by its message to find the cause and the fix.

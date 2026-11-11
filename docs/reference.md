@@ -1,6 +1,6 @@
 # Reference
 
-This page lists every file of the repo, the options of `install.sh`, and which files you may change.
+Look up every file of the repo, the options of `install.sh`, and which files you can change.
 
 | Path | What it holds |
 |---|---|
