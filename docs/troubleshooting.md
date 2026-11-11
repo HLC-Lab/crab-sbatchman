@@ -1,5 +1,7 @@
 # Troubleshooting
 
+The stages are Install, Self-check, Launch and Results.
+
 Messages are quoted as the program prints them. Where a message holds a version or a path, the one you see can differ.
 
 ## Install
@@ -154,10 +156,77 @@ The reason follows the colon. A missing file is part of the clone: restore it.
 git checkout -- benchmarks/blink/smoke.yaml
 ```
 
-For any other reason, fix the cause it names, then run the installer again. This SbatchMan message means the cluster name in the configs file differs from the one `env.sh` exports:
+For any other reason, fix the cause it names, then run the installer again. For `No configurations found for cluster`, see [Launch](#launch).
+
+## Launch
+
+Read the line `Submitted successfully N jobs`: the exit code of `sbatchman launch` is 0 even when `N` is 0.
+
+### "Skipping job: An identical job already exists"
 
 ```text
-Error: No configurations found for cluster 'leonardo'.
+Skipping job: An identical job already exists for config 'crab_run_2' with tag 'a2a-smoke-2'.
+Use '--force' to submit it anyway.
 ```
 
-Keep the cluster block named as in `site/leonardo.env` (`SBATCHMAN_CLUSTER_NAME`), run `./install.sh`, then `source env.sh`.
+A job with the same cluster, config and tag is already in the project, in any status. Change the tag or add `--force`, as in [Run a job again](launch.md#run-a-job-again).
+
+### "Error: No configurations found for cluster 'leonardo'."
+
+The cluster name SbatchMan uses (`SBATCHMAN_CLUSTER_NAME`) matches no cluster block of the configs file. Keep the block named as in `site/leonardo.env`, run `./install.sh`, then `source env.sh`.
+
+### "Failed to submit job: Job submission failed with error code 1."
+
+```text
+Failed to submit job: Job submission failed with error code 1.
+Output stream:
+Error stream:
+```
+
+`sbatch` refused the job. The scheduler's reason follows `Error stream:`, and SbatchMan keeps it in the job's `stderr.log`. Fix the reason: an `invalid account` means the account in `site/local.env` is wrong, so correct it and run `./install.sh`.
+Then launch again with `--force`, because the failed job counts as an existing one.
+
+### "SbatchMan root not found"
+
+The message goes on with `run 'sbatchman init'`. The command ran outside a benchmark folder. Go into one:
+
+```bash
+cd benchmarks/<benchmark>
+```
+
+### A job shows FAILED or TIMEOUT in sbatchman status
+
+Read `stderr.log` and `stdout.log` in the job folder, `SbatchMan/experiments/<cluster>/<config>/<tag>/<timestamp>/`. The files `bindings_app_0.log` and `error_app_0.log` in each experiment folder hold the output of each app.
+
+`TIMEOUT` means Slurm stopped the job at its `time` limit, 30 minutes in `configs/leonardo.yaml`. Raise `time` there and run `./install.sh`.
+Then launch again with `--force`.
+
+## Results
+
+### `sbatchman visualize` does not start because port 8765 is in use
+
+Another program listens on the port, and `sbatchman visualize` cannot change its port. Stop that program. If it is `crab web`, start it again from a shell where you ran `source env.sh`: it then uses port 8899.
+
+### The page opens with no data or no plots
+
+`sbatchman visualize` reads the jobs of the folder you start it from, and only those with status `COMPLETED`, `FAILED`, `TIMEOUT` or `CHECK_FAIL`. Check the status, copy the results, then start it from the benchmark folder:
+
+```bash
+sbatchman status
+```
+
+### "Parser script not found:"
+
+`sbatchman visualize` reads `./parser.py`, and only the benchmark folders hold it. Go into one, then start `sbatchman visualize` again:
+
+```bash
+cd benchmarks/<benchmark>
+```
+
+### "✗ ? failed (rsync exit N)"
+
+`sbatchman fetch` prints this for a `[[clusters.fetch_dirs]]` block without an `alias`, so the name shows as `?`. rsync prints its reason in the lines before it. Check that `ssh <your-user>@<login-host>` works from the same shell and that `remote` is a folder that exists on the cluster. Login nodes rotate, and a node that answers with a new host key stops the fetch the same way.
+
+### "parser: ...: file skipped (no data rows)"
+
+The job ended, but its `data_app_0.csv` has no rows, so the plots stay empty. A failed run does not fail the job. Read `bindings_app_0.log` and `error_app_0.log` in that experiment folder, and the job's `stderr.log`.
