@@ -42,7 +42,6 @@ BOLD_LEAD_RE = re.compile(r"^\s*(?:[-*+]|\d+\.)\s+\*\*(?:[^*]+\*\*\s*[:\-]|[^*]*
 # The only <NAME> tokens the text may use. A later step adds a name here in the same commit as the
 # text that needs it. Never a host, a user or an account.
 ALLOWED_PLACEHOLDERS = {
-    "<umbrella-url>",
     "<umbrella-dir>",
     "<YOUR_ACCOUNT>",
     "<login-host>",
@@ -63,7 +62,11 @@ FORBIDDEN = (
     "crab-suite",
     "net4exa",
 )
-FORBIDDEN_URL = re.compile(r"github\.com/HLC-Lab/(?!CRAB\b|crab-wrappers\b)")
+FORBIDDEN_URL = re.compile(r"github\.com/HLC-Lab/(?!CRAB\b|crab-wrappers\b|crab-sbatchman\b)")
+# The umbrella's own address, in the form of the submodule URLs of `.gitmodules`.
+UMBRELLA_CLONE_URL = "https://github.com/HLC-Lab/crab-sbatchman.git"
+# Text that marks a page as unfinished.
+LEFTOVER_RE = re.compile(r"<umbrella-url>|working\s+title|\bTODO\b", re.IGNORECASE)
 
 # A token that starts with one of these must name a path of the checkout.
 PATH_PREFIXES = ("benchmarks/", "docs/", "configs/", "tests/", "CRAB/", "crab-wrappers/")
@@ -82,6 +85,9 @@ def _allowed_missing_path(token: str) -> bool:
         return True
     # The environment and the wrappers link inside CRAB/ are made by install.sh, not by the clone.
     if token.startswith("CRAB/.venv") or token == "CRAB/wrappers":
+        return True
+    # The dashboard creates the staging folder when it writes a campaign file.
+    if token.startswith("CRAB/.web_staging"):
         return True
     # The template benchmark folder does not exist until a later step creates it.
     if token.startswith("benchmarks/_template"):
@@ -245,6 +251,20 @@ def placeholder_problems(text: str) -> list[str]:
     return [token for token in found if token not in ALLOWED_PLACEHOLDERS]
 
 
+def leftover_problems(text: str) -> list[str]:
+    """Placeholders for the umbrella address, the words "working title" and TODO markers (as written)."""
+    return [match.group(0) for match in LEFTOVER_RE.finditer(text)]
+
+
+def clone_url_problems(text: str) -> list[str]:
+    """`git clone` command lines (in code fences) that do not clone the umbrella from its address."""
+    return [
+        line.strip()
+        for line in _inside_fences(text)
+        if "git clone" in line and UMBRELLA_CLONE_URL not in line.split()
+    ]
+
+
 def _code_tokens(text: str) -> list[str]:
     """The whitespace-split words of every inline code span and every fenced line."""
     chunks = []
@@ -353,6 +373,19 @@ def test_no_forbidden_project_word_or_url():
         assert not FORBIDDEN_URL.search(text), path.name
 
 
+def test_no_unfinished_marker_in_any_page():
+    for path in _all_docs():
+        assert leftover_problems(path.read_text()) == [], path.name
+
+
+def test_the_readme_clones_the_umbrella_from_its_address():
+    assert re.fullmatch(r"https://github\.com/HLC-Lab/[\w-]+\.git", UMBRELLA_CLONE_URL)
+    readme = README.read_text()
+    assert f"git clone --recurse-submodules {UMBRELLA_CLONE_URL}\n" in readme
+    for path in _all_docs():
+        assert clone_url_problems(path.read_text()) == [], path.name
+
+
 def test_no_personal_word():
     words = forbidden_or_skip()
     for path in _all_docs():
@@ -380,7 +413,26 @@ def test_the_guards_catch_what_they_should(tmp_path):
         "`docs/does-not-exist.md` and `benchmarks/_template/x` and `SbatchMan/x`\n"
     )
     assert placeholder_problems(bad) == ["<not-allowed>"]
-    assert placeholder_problems("<umbrella-url> <<EOF") == []
+    assert placeholder_problems("<umbrella-url> <umbrella-dir> <<EOF") == ["<umbrella-url>"]
+    assert leftover_problems("Clone <umbrella-url>. A Working  Title. TODO: x. todo\n") == [
+        "<umbrella-url>",
+        "Working  Title",
+        "TODO",
+        "todo",
+    ]
+    assert leftover_problems("Run `todoist` and `<umbrella-dir>`.\n") == []
+    good_clone = f"```bash\ngit clone --recurse-submodules {UMBRELLA_CLONE_URL}\n```\nPlain `git clone` in prose.\n"
+    assert clone_url_problems(good_clone) == []
+    bad_clone = (
+        "```bash\n"
+        "git clone --recurse-submodules <umbrella-url> <umbrella-dir>\n"
+        "git clone https://github.com/HLC-Lab/crab-sbatchman\n"
+        "git clone https://github.com/HLC-Lab/crab-wrappers.git\n"
+        "```\n"
+    )
+    assert len(clone_url_problems(bad_clone)) == 3
+    assert FORBIDDEN_URL.search("github.com/HLC-Lab/crab-sbatchman.git") is None
+    assert FORBIDDEN_URL.search("github.com/HLC-Lab/other") is not None
     links = link_problems(bad, tmp_path)
     assert links == ["missing.md: no such file", "there.md#nope: no such heading"]
     flags = {"--role", "--account"}

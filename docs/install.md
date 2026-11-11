@@ -12,18 +12,14 @@
 On a login node:
 
 ```bash
-git clone --recurse-submodules <umbrella-url> <umbrella-dir>
-cd <umbrella-dir>
+git clone --recurse-submodules https://github.com/HLC-Lab/crab-sbatchman.git
+cd crab-sbatchman
 module load python
 ./install.sh --account <YOUR_ACCOUNT>
 source env.sh
 ```
 
-Replace the placeholders:
-
-- `<umbrella-url>` with the address of this repo.
-- `<umbrella-dir>` with the folder the clone creates.
-- `<YOUR_ACCOUNT>` with the Slurm account to charge.
+Replace `<YOUR_ACCOUNT>` with the Slurm account to charge.
 
 The installer checks the account first, with `sacctmgr` when it is on `PATH`. Add `--skip-account-check` if the lookup is wrong for your site. The installer saves the account, so later runs need no `--account`. Run `source env.sh` in every new shell. Add `--dry-run` to print the commands without running them.
 
@@ -36,8 +32,8 @@ Register the benchmarks you run in [Register a benchmark](benchmarks.md).
 Optional: install the umbrella on your laptop, to run the dashboards there.
 
 ```bash
-git clone --recurse-submodules <umbrella-url> <umbrella-dir>
-cd <umbrella-dir>
+git clone --recurse-submodules https://github.com/HLC-Lab/crab-sbatchman.git
+cd crab-sbatchman
 ./install.sh --role laptop
 source env.sh
 ```
@@ -63,7 +59,7 @@ source env.sh
    | Port | `22` |
    | Auth | agent (ssh-agent or certificate) |
    | Host key | insecure (login nodes rotate) |
-   | Install dir | The umbrella folder on the cluster |
+   | Install dir | `<umbrella-dir>`, the folder where you cloned the umbrella on the cluster |
    | Crab command, Preset | Empty |
 
 Do not press **Install CRAB** for this cluster: the umbrella already installed it.

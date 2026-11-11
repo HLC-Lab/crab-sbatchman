@@ -24,7 +24,7 @@ Run these steps on your laptop, installed as in [Install](install.md#install-on-
    local = "<laptop-dir>/benchmarks/<benchmark>/SbatchMan"
    ```
 
-   Replace `<login-host>` and `<your-user>` with the address and username you ssh with. Replace `<umbrella-dir>` with the absolute path of the umbrella folder on the cluster, and `<laptop-dir>` with the one on your laptop. Add one `[[clusters.fetch_dirs]]` block for each benchmark.
+   Replace `<login-host>` and `<your-user>` with the address and username you ssh with. Replace `<umbrella-dir>` with the absolute path of the folder where you cloned the umbrella on the cluster, and `<laptop-dir>` with the one on your laptop. Add one `[[clusters.fetch_dirs]]` block for each benchmark.
 
 2. Copy the results. Run this in a shell where you ran `source env.sh`, and run it again after new jobs finish.
 

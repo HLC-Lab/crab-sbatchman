@@ -1,4 +1,4 @@
-# Partner umbrella (working title)
+# `crab-sbatchman`
 
 CRAB benchmarks co-running HPC applications on a Slurm cluster. SbatchMan creates, launches and monitors the Slurm jobs that run them.
 This repo, the umbrella, installs both at matching versions and ships example benchmarks.
@@ -8,14 +8,14 @@ This repo, the umbrella, installs both at matching versions and ships example be
 On a login node:
 
 ```bash
-git clone --recurse-submodules <umbrella-url> <umbrella-dir>
-cd <umbrella-dir>
+git clone --recurse-submodules https://github.com/HLC-Lab/crab-sbatchman.git
+cd crab-sbatchman
 module load python
 ./install.sh --account <YOUR_ACCOUNT>
 source env.sh
 ```
 
-[Install](docs/install.md#install-on-the-cluster) explains each placeholder. The installer checks the account first, with `sacctmgr` when it is on `PATH` (`--skip-account-check` skips the lookup). It saves the account, so later runs need no `--account`.
+Replace `<YOUR_ACCOUNT>` with the Slurm account to charge. The installer checks the account first, with `sacctmgr` when it is on `PATH` (`--skip-account-check` skips the lookup). It saves the account, so later runs need no `--account`.
 Run `source env.sh` in every new shell. A pass of the final self-check prints `install.sh: all checks passed`.
 If a check fails, see [Troubleshooting](docs/troubleshooting.md).
 

@@ -107,7 +107,7 @@ The dashboard writes the jobs file for you. It stages the file on the cluster an
 5. In **Experiment**, press **+ Add app**, pick a wrapper and write its args. Press **+** in the group list for another group.
 6. Pick the cluster under **Write to cluster**. If a problem count shows next to **Write files**, press it to see what blocks the write.
 7. Press **Write files**. The dashboard shows the path on the cluster and a local copy.
-8. On the cluster, copy the file from `<umbrella-dir>/CRAB/.web_staging/` into `benchmarks/<benchmark>`. Its name is the campaign name in lower case.
+8. On the cluster, in the folder where you cloned the umbrella, copy the file from `CRAB/.web_staging/` into `benchmarks/<benchmark>`. Its name is the campaign name in lower case.
 9. Add the line `configs: ../../.local/configs.leonardo.yaml` at the top of the copy. The dashboard does not write it.
 10. Run `./install.sh`, then the `--dry-run` command of [Write the jobs file by hand](#write-the-jobs-file-by-hand).
 

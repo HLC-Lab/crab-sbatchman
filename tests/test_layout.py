@@ -89,7 +89,7 @@ def test_gitignore_ignores_the_sbatchman_projects_but_not_the_jobs_files():
 
 def test_no_undecided_repo_name_in_tracked_text():
     submodule_paths = {"CRAB", "crab-wrappers"}
-    forbidden = re.compile(r"crab-suite|net4exa|github\.com/HLC-Lab/(?!CRAB\b|crab-wrappers\b)")
+    forbidden = re.compile(r"crab-suite|net4exa|github\.com/HLC-Lab/(?!CRAB\b|crab-wrappers\b|crab-sbatchman\b)")
     for name in _tracked_files():
         if name == ".gitmodules" or name in submodule_paths:
             continue
