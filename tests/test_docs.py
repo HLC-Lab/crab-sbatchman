@@ -274,8 +274,9 @@ def path_problems(text: str) -> list[str]:
 
 
 def _named_top_level(text: str) -> set[str]:
-    """First path component of every inline code span (`./` dropped)."""
+    """First path component of every inline code span (`./` dropped); fenced blocks are skipped."""
     names = set()
+    text = re.sub(r"```.*?```", "", text, flags=re.DOTALL)
     for span in re.findall(r"`([^`]+)`", text):
         for word in span.split():
             word = word.removeprefix("./")
