@@ -49,6 +49,12 @@ ALLOWED_PLACEHOLDERS = {
     "<your-user>",
     "<benchmark>",
     "<job>",
+    "<job-id>",
+    "<cluster>",
+    "<config>",
+    "<tag>",
+    "<timestamp>",
+    "<laptop-dir>",
 }
 
 # Project names that are not decided yet. The personal words (account, user, host names) are in
