@@ -58,6 +58,8 @@ SbatchMan has no cancel command. Read the job id in `sbatchman status`, then run
 scancel <job-id>
 ```
 
+`crab cancel <job-id>` also cancels a Slurm job: it runs `scancel` for an id of digits only.
+
 ## Find the results
 
 Each job writes to this folder of the benchmark folder:

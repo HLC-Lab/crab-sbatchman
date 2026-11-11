@@ -5,7 +5,7 @@ Look up the options of `install.sh`, what `env.sh` sets, the files of the repo a
 ## `install.sh`
 
 ```bash
-./install.sh [--role cluster|laptop] [--account NAME] [--no-check] [--dry-run] [-h|--help]
+./install.sh [--role cluster|laptop] [--account NAME] [--no-check] [--full-check] [--dry-run] [--offline] [-h|--help]
 ```
 
 | Flag | Meaning |
@@ -13,7 +13,9 @@ Look up the options of `install.sh`, what `env.sh` sets, the files of the repo a
 | `--role ROLE` | `cluster` (default): CRAB, SbatchMan and the configs file. `laptop`: CRAB with the web dashboard and SbatchMan with its plots. |
 | `--account NAME` | Slurm account to charge, saved in `site/local.env` (cluster role). Letters, digits, `_`, `.` and `-`. |
 | `--no-check` | Skip the self-check at the end. |
+| `--full-check` | In the self-check, run `crab validate` on every variable combination of each jobs file. Without it the check runs the first and the last combination only. |
 | `--dry-run` | Print every command and file write, run and write nothing. |
+| `--offline` | Use no network: every `pip` call reads wheels only from the folder in the environment variable `WHEELHOUSE` (default `.wheelhouse` in the umbrella folder). The installer stops if that folder is missing. Fill it with `pip download`. |
 | `-h`, `--help` | Print the usage and exit. |
 
 The environment variable `SBATCHMAN_VERSION` sets the SbatchMan version to install (default `2.0.4`).
@@ -63,19 +65,19 @@ It ends by printing the paths of `crab` and `sbatchman`.
 | `tests/` | The checks that keep the installer and the docs true. | no |
 | `CRAB/` | The CRAB submodule, pinned. | no |
 | `CRAB/.venv/`, `CRAB/wrappers` | The virtual environment and the link to `crab-wrappers/`. | generated |
-| `crab-wrappers/` | The wrappers submodule, pinned. | no |
+| `crab-wrappers/` | The wrappers submodule, pinned. | no, except a shared wrapper that goes to the crab-wrappers repository |
 | `.local/` | The filled configs file, `.local/configs.leonardo.yaml`. | generated |
 
 ## Glossary
 
 | Word | Meaning |
 |---|---|
-| Wrapper | A Python file in `crab-wrappers/` that names an application's binary and turns its output into rows. |
+| Wrapper | A Python file that names an application's binary and turns its output into rows. Shared wrappers are in `crab-wrappers/`, private ones in `local/wrappers/` of the `CRAB` folder. |
 | Receipt | A small file that records where a binary lives on this cluster and which modules it needs. |
 | Jobs file | A YAML file in `benchmarks/<benchmark>/` that lists the jobs SbatchMan launches. |
 | Configs file | The SbatchMan file `.local/configs.leonardo.yaml`, filled from `configs/leonardo.yaml`. |
 | Config | A named entry of the configs file: the nodes, modules and GPUs of the jobs that use it. |
-| Campaign | A jobs file written for one set of runs. |
+| Campaign | A jobs file written for one set of runs. It is not the `sbatchman campaign` command, which takes a YAML file of its own kind. |
 | SbatchMan project | The `SbatchMan/` folder that `sbatchman init` creates in a benchmark folder. |
 | Self-check | The last step of `install.sh`: one `OK` or `FAIL` line per item, then a summary. It submits no Slurm job. |
 

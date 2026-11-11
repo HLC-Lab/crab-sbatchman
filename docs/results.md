@@ -2,7 +2,7 @@
 
 Copy the results of finished jobs to your laptop and plot them with `sbatchman visualize`.
 
-You need the laptop install from [Install on your laptop](install.md#install-on-your-laptop) and at least one finished job.
+Run these steps on your laptop, installed as in [Install](install.md#install-on-your-laptop), once at least one job has finished.
 
 ## Fetch and plot
 
@@ -45,7 +45,7 @@ The port is fixed. `crab web` serves on 8899 after `source env.sh`, so you can r
 
 ## What you see
 
-The `plots.json` in each benchmark folder holds two starter plots:
+The `plots.json` of Blink holds two starter plots, and so does the one of Quantum ESPRESSO:
 
 - Blink, "Baseline vs noise": the average duration in ms per message size, for baseline and noise.
 - Blink, "Per repetition": the same average for each repetition.
@@ -54,7 +54,7 @@ The `plots.json` in each benchmark folder holds two starter plots:
 
 Each app has one table: `app_0` for the first app, `app_1` for the second, and so on. Its columns are:
 
-- Every column of the app's `data_app_0.csv`, `data_app_1.csv` and so on.
+- Every column of the app's `data_app_0.csv`, `data_app_1.csv` and so on, named as CRAB wrote them.
 - `app`, `tag`, `config`, `job_id` and `experiment`.
 - One column for each variable of the job, named `var_` plus the variable, such as `var_nodes`.
 
@@ -65,3 +65,15 @@ Use the page's plot builder to draw other plots from these tables. SQL needs dou
 ```sql
 SELECT "0_Avg-Duration_s" FROM app_0
 ```
+
+## Plot a benchmark of your own
+
+The laptop folder `benchmarks/<benchmark>` needs a SbatchMan project: `sbatchman fetch` creates its `SbatchMan/` folder from the `local` path of the benchmark's `[[clusters.fetch_dirs]]` block. It also needs a `parser.py`, and optionally a `plots.json`. After the fetch, link the shipped parser from the umbrella folder:
+
+```bash
+ln -s ../parser.py benchmarks/<benchmark>/parser.py
+```
+
+Without `parser.py`, `sbatchman visualize` stops with `Parser script not found:`. Without `plots.json`, the page opens with no saved plots and you build them in the plot builder.
+
+A wrapper's metrics land in the table of its app, which exists when the app has `"collect": true`. The columns are `run_id`, `msg_size`, one for each wrapper key, then one for each metric, named with the app number, the metric and its unit: the metric `latency` in `us` of app 0 is `0_latency_us`.

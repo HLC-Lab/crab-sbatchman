@@ -68,6 +68,14 @@ A cluster Python module sets `PYTHONPATH`, and the environment reads it. `source
 source env.sh
 ```
 
+### "crab: command not found"
+
+The environment is not active in this shell. Run this from the umbrella folder, in every new shell:
+
+```bash
+source env.sh
+```
+
 ### The crab and sbatchman commands stop starting after you move the umbrella folder
 
 The environment in `CRAB/.venv` cannot move with the folder. Run the installer again from the new place:

@@ -61,17 +61,32 @@ The name is what a job writes in its `config:` key. Every `nodes` value a job us
        command: crab worker --workdir "$SBATCHMAN_JOB_DIR"
    ```
 
-3. Change the keys you need:
+3. Change the keys of the jobs file you need:
 
    | Key | Meaning |
    |---|---|
    | `variables` | SbatchMan runs one job per value. Write `{nodes}` where the value goes. |
    | `config` | The name of a config in the configs file. |
    | `tag` | The job name and its result folder. Keep it equal to `"name"` in the JSON. |
-   | `"numnodes"`, `"ppn"` | The nodes and the ranks per node. Stay within the config's `nodes` and `tasks_per_node`. |
-   | `"path"`, `"args"` | The wrapper and its flags. |
 
-4. Run `./install.sh` once more. It runs `sbatchman init` in the new folder and checks every jobs file with `crab validate`.
+4. Change the keys of the CRAB JSON you need. [The commented template](../templates/jobs-template.yaml) says what to change in each.
+
+   | Key | Meaning |
+   |---|---|
+   | `"schema_version"` | The format of the file. Keep `2`. |
+   | `"global_options"` | The settings of the whole job: `"numnodes"`, `"ppn"` and `"name"`. |
+   | `"numnodes"` | The nodes of the job, from `{nodes}`. Stay within the config's `nodes`. |
+   | `"ppn"` | The ranks per node of each app. Stay within the config's `tasks_per_node`. |
+   | `"name"` | The name of the run. Keep it equal to `tag`. |
+   | `"experiments"` | One entry per experiment. They run one after another, in sorted name order. |
+   | `"apps"` | The applications of an experiment, keyed `"0"`, `"1"` and so on. They run together in every run. |
+   | `"path"` | The wrapper of the app, such as `myapp/myapp.py` for a wrapper made with `crab wrappers new myapp`. |
+   | `"args"` | The command-line flags of the app. |
+   | `"collect"` | `true` stores the app's metrics, `false` skips them. Use `false` for noise apps. |
+   | `"start"` | The delay in seconds before the app starts, or `"s0"` to start when app 0 has finished. |
+   | `"end"` | `""` waits for the app to finish, `"f"` stops it when the other apps have finished. |
+
+5. Run `./install.sh` once more. It runs `sbatchman init` in the new folder and checks every jobs file with `crab validate`.
 
 Write the heredoc marker quoted (`<<'JSON'`) so the shell leaves the JSON as it is. Write `$SBATCHMAN_JOB_DIR` for the job folder: SbatchMan does not replace `{EXP_DIR}` there. To co-run applications, add apps `"1"`, `"2"` with a `partition`, as in `benchmarks/blink/blink-noise.yaml`.
 

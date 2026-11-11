@@ -1,7 +1,7 @@
 # Partner umbrella (working title)
 
-CRAB benchmarks co-running HPC applications on a Slurm cluster, and SbatchMan launches the jobs.
-This repo installs both at matching versions and ships example benchmarks.
+CRAB benchmarks co-running HPC applications on a Slurm cluster. SbatchMan creates, launches and monitors the Slurm jobs that run them.
+This repo, the umbrella, installs both at matching versions and ships example benchmarks.
 
 ## Install on the cluster
 
@@ -23,7 +23,7 @@ If a check fails, see [Troubleshooting](docs/troubleshooting.md).
 
 Register the benchmarks you run in [Register a benchmark](docs/benchmarks.md).
 
-Optional: run one job to see it work.
+Optional: run one job to see it work. It needs Blink [registered](docs/benchmarks.md#register-a-supported-benchmark) and submits one 2-node job with a 30-minute limit.
 
 ```bash
 cd benchmarks/blink && sbatchman launch -f smoke.yaml
