@@ -136,12 +136,14 @@ write_file() {
 }
 
 # read_file VAR PATH: sets VAR to the file's exact text, trailing newlines kept ("" when missing).
+# printf -v instead of a nameref: bash 3.2 (the /bin/bash of macOS) has no 'local -n'. The
+# helper's own variable is named so it cannot clash with the caller's VAR.
 read_file() {
-    local -n target="$1"
-    target=""
+    local _read_file_text=""
     if [[ -f "$2" ]]; then
-        IFS= read -r -d '' target <"$2" || true
+        IFS= read -r -d '' _read_file_text <"$2" || true
     fi
+    printf -v "$1" '%s' "$_read_file_text"
 }
 
 # --offline: no pip call touches the network; wheels come from one local folder. Exported for the
@@ -275,11 +277,17 @@ if [[ "$ROLE" == cluster ]]; then
     else
         shopt -u patsub_replacement 2>/dev/null || true
         read_file content "$TEMPLATE"
-        content="${content//"<YOUR_ACCOUNT>"/"$SLURM_ACCOUNT"}"
-        content="${content//"<SLURM_PARTITION>"/"$SLURM_PARTITION"}"
-        content="${content//"<SLURM_QOS>"/"$SLURM_QOS"}"
-        content="${content//"<CRAB_DIR>"/"$CRAB_DIR"}"
-        left="$(printf '%s' "$content" | grep -o '<[A-Z_]\+>' | sort -u | tr '\n' ' ' || true)"
+        # The tokens sit in variables, not in nested quotes: bash 3.2 would keep those quote
+        # characters in the text. The values are used literally (patsub_replacement is off).
+        token_account='<YOUR_ACCOUNT>'
+        token_partition='<SLURM_PARTITION>'
+        token_qos='<SLURM_QOS>'
+        token_crab_dir='<CRAB_DIR>'
+        content="${content//$token_account/$SLURM_ACCOUNT}"
+        content="${content//$token_partition/$SLURM_PARTITION}"
+        content="${content//$token_qos/$SLURM_QOS}"
+        content="${content//$token_crab_dir/$CRAB_DIR}"
+        left="$(printf '%s' "$content" | grep -o -E '<[A-Z_]+>' | sort -u | tr '\n' ' ' || true)"
         if [[ -n "$left" ]]; then
             echo "install.sh: the configs template still has unfilled tokens: $left" >&2
             exit 1
