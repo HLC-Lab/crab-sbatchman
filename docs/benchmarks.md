@@ -35,20 +35,24 @@ You need the application's binary on the cluster and a real output of one run of
 1. Create the wrapper.
 
    ```bash
-   crab wrappers new myapp
+   crab wrappers new myapp --local
    ```
 
-   This creates `myapp/myapp.py`, a README and a passing example in the first folder of `CRAB_PATH_WRAPPERS`. After `source env.sh` that folder is `crab-wrappers/`. Add `--local` to keep the wrapper private and untracked.
+   This creates `myapp/myapp.py`, a README and a passing example in `local/wrappers/` of the `CRAB` folder. That folder is git-ignored and searched first, so `crab wrappers list` and `crab list-benchmarks` find the wrapper and the submodule stays clean. A job names it `myapp/myapp.py`. Without `--local`, the wrapper goes to `crab-wrappers/` and shows as untracked content of that submodule in `git status`.
 
-2. Write the parser against a real sample.
+2. Write the parser against a real sample. [Writing a wrapper](../CRAB/docs/extending/wrappers.md#the-contract) holds the full contract.
 
-   Edit `metadata` and `read_data()` in `myapp.py`. List each measured value in `metadata`, with its unit and `"conv": True` for values CRAB repeats a run until they converge. `read_data()` returns one dict per sample and raises when the output is not what you expect.
+   Edit `metadata` and `read_data()` in `myapp.py`:
+
+   - `metadata` lists each measured value with its `name` and `unit`.
+   - `"conv": True` in an entry makes CRAB repeat a run until that value converges.
+   - `read_data()` returns one dict per sample, with every metric and nothing else. It raises when the output is not what you expect.
 
    In the wrapper's `samples/` folder, replace the example case with a folder that holds:
 
    - `stdout.txt`: the real output of your application.
-   - `expected.json`: the rows the parser must return for it.
-   - `case.json`: the wrapper file name and the application's arguments.
+   - `expected.json`: the rows the parser must return for it, one dict per sample.
+   - `case.json`: the wrapper file name and the application's arguments. Leave its `set` key at `{}`.
 
    Then run the test:
 
@@ -68,7 +72,7 @@ You need the application's binary on the cluster and a real output of one run of
    crab receipts set myapp --binary /path/to/myapp --pre-run "module load openmpi"
    ```
 
-   The first argument is the `benchmark_id` of the wrapper, which `crab wrappers new` sets to the app name. Repeat `--pre-run` for each command to run before every launch. Add `--launcher srun` or `--launcher mpirun` to override the launcher of your preset. A binary on `PATH` that the wrapper names in `executable` needs no receipt.
+   The first argument is the `benchmark_id` of the wrapper, which `crab wrappers new` sets to the app name. Repeat `--pre-run` for each command to run before every launch. Add `--launcher srun` or `--launcher mpirun` to override the launcher of your preset. A binary on `PATH` that the wrapper names in `executable` needs no receipt. The `modules` of the job's SbatchMan config (see [Add your config](campaigns.md#add-your-config)) and the `--pre-run` commands both apply: the config's modules load first, then each app's `--pre-run` commands run.
 
 4. Check the wrapper and the receipt.
 
@@ -84,7 +88,7 @@ You need the application's binary on the cluster and a real output of one run of
 
    `binary missing` means no receipt, `binary` key or `PATH` entry matches. Then run `crab list-benchmarks`: it lists `myapp  (binary)`.
 
-To share the wrapper, send the wrapper folder with the real sample as a pull request to [crab-wrappers](https://github.com/HLC-Lab/crab-wrappers). The wrapper contract is in [Writing a wrapper](../CRAB/docs/extending/wrappers.md).
+To share the wrapper, send the wrapper folder with the real sample as a pull request to [crab-wrappers](https://github.com/HLC-Lab/crab-wrappers).
 
 ### Apps built with different module stacks
 

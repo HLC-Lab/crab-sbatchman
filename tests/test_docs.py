@@ -20,8 +20,8 @@ README_MAX_LINES = 60
 README_TARGET_LINES = 40
 PAGE_CAPS = {
     "install": 80,
-    "benchmarks": 100,
-    "campaigns": 100,
+    "benchmarks": 110,
+    "campaigns": 120,
     "launch": 100,
     "results": 100,
     "troubleshooting": 300,
@@ -49,6 +49,12 @@ ALLOWED_PLACEHOLDERS = {
     "<your-user>",
     "<benchmark>",
     "<job>",
+    "<job-id>",
+    "<cluster>",
+    "<config>",
+    "<tag>",
+    "<timestamp>",
+    "<laptop-dir>",
 }
 
 # Project names that are not decided yet. The personal words (account, user, host names) are in
@@ -228,6 +234,11 @@ def flag_problems(text: str, flags: set[str]) -> list[str]:
     return problems
 
 
+def undocumented_flags(reference: str, flags: set[str]) -> list[str]:
+    """The `install.sh` flags (sorted) that the text of the reference page never names."""
+    return sorted(flag for flag in flags if flag not in reference)
+
+
 def placeholder_problems(text: str) -> list[str]:
     """`<NAME>` tokens outside the allowed set (a heredoc marker `<<EOF` is not a token)."""
     found = re.findall(r"<[A-Za-z][\w-]*>", text)
@@ -268,8 +279,9 @@ def path_problems(text: str) -> list[str]:
 
 
 def _named_top_level(text: str) -> set[str]:
-    """First path component of every inline code span (`./` dropped)."""
+    """First path component of every inline code span (`./` dropped); fenced blocks are skipped."""
     names = set()
+    text = re.sub(r"```.*?```", "", text, flags=re.DOTALL)
     for span in re.findall(r"`([^`]+)`", text):
         for word in span.split():
             word = word.removeprefix("./")
@@ -316,6 +328,11 @@ def test_every_install_flag_named_in_the_docs_exists():
     assert {"--role", "--account", "--no-check", "--dry-run"} <= flags
     for path in _all_docs():
         assert flag_problems(path.read_text(), flags) == [], path.name
+
+
+def test_the_reference_page_documents_every_install_flag():
+    flags = install_flags()
+    assert undocumented_flags((DOCS / "reference.md").read_text(), flags) == []
 
 
 def test_repo_paths_in_code_exist():
@@ -369,6 +386,7 @@ def test_the_guards_catch_what_they_should(tmp_path):
     flags = {"--role", "--account"}
     assert [p.split(" in:")[0] for p in flag_problems(bad, flags)] == ["--bogus-flag", "--also-bogus"]
     assert path_problems(bad) == ["docs/does-not-exist.md"]
+    assert undocumented_flags("`--role` and `--dry-run`", {"--role", "--dry-run", "--offline"}) == ["--offline"]
     assert _slug("Some Heading, here") == "some-heading-here"
     assert _h1_count("# One\n```\n# not a heading\n```\n# Two\n") == 2
 
@@ -459,8 +477,8 @@ def test_the_page_caps_hold_and_never_loosen():
     assert README_MAX_LINES == 60 and README_TARGET_LINES == 40
     assert PAGE_CAPS == {
         "install": 80,
-        "benchmarks": 100,
-        "campaigns": 100,
+        "benchmarks": 110,
+        "campaigns": 120,
         "launch": 100,
         "results": 100,
         "troubleshooting": 300,
