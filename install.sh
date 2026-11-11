@@ -9,8 +9,8 @@ SBATCHMAN_VERSION="${SBATCHMAN_VERSION:-2.0.4}"
 
 usage() {
     cat <<'EOF'
-Usage: ./install.sh [--role cluster|laptop] [--account NAME] [--no-check] [--dry-run]
-                    [-h|--help]
+Usage: ./install.sh [--role cluster|laptop] [--account NAME] [--no-check] [--full-check]
+                    [--dry-run] [--offline] [-h|--help]
 
   --role ROLE      cluster (default): CRAB, SbatchMan and the configs file.
                    laptop: CRAB with the web dashboard and SbatchMan with its plots.
@@ -20,14 +20,21 @@ Usage: ./install.sh [--role cluster|laptop] [--account NAME] [--no-check] [--dry
                    through 'crab validate' and, for the cluster role, a dry-run launch of
                    the smoke file), then a summary, and exits 1 if any item failed. It
                    submits no Slurm job.
+  --full-check     in the self-check, run 'crab validate' on every variable combination of
+                   each jobs file (default: the first and the last combination only).
   --dry-run        print every command and file write, run and write nothing.
+  --offline        no network: every pip call (also inside 'make core') reads wheels only from
+                   the folder $WHEELHOUSE (default: .wheelhouse in this folder). Stops with an
+                   error if that folder is missing; fill it with 'pip download -d <folder> ...'.
 EOF
 }
 
 ROLE=cluster
 ACCOUNT_FLAG=""
 NO_CHECK=0
+FULL_CHECK=0
 DRY_RUN=0
+OFFLINE=0
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -45,8 +52,16 @@ while [[ $# -gt 0 ]]; do
             NO_CHECK=1
             shift
             ;;
+        --full-check)
+            FULL_CHECK=1
+            shift
+            ;;
         --dry-run)
             DRY_RUN=1
+            shift
+            ;;
+        --offline)
+            OFFLINE=1
             shift
             ;;
         -h | --help)
@@ -78,6 +93,19 @@ fi
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 CRAB_DIR="$ROOT/CRAB"
 VENV_BIN="$CRAB_DIR/.venv/bin"
+
+# sbatchman_installed_version: asks the venv's pip. Sets SBATCHMAN_FOUND (the installed version,
+# "" when none) and PIP_SHOW_OUT (pip's output); returns pip's status.
+SBATCHMAN_FOUND=""
+PIP_SHOW_OUT=""
+sbatchman_installed_version() {
+    SBATCHMAN_FOUND=""
+    if PIP_SHOW_OUT="$("$VENV_BIN/pip" show sbatchman 2>&1)"; then
+        SBATCHMAN_FOUND="$(printf '%s\n' "$PIP_SHOW_OUT" | sed -n 's/^Version: *//p' | head -n 1)"
+        return 0
+    fi
+    return 1
+}
 
 # Prints the command, then runs it (unless --dry-run).
 run() {
@@ -116,6 +144,19 @@ read_file() {
     fi
 }
 
+# --offline: no pip call touches the network; wheels come from one local folder. Exported for the
+# whole run, so the pip inside 'make core' inherits it. Checked before any install step.
+if [[ $OFFLINE -eq 1 ]]; then
+    WHEEL_DIR="${WHEELHOUSE:-$ROOT/.wheelhouse}"
+    if [[ ! -d "$WHEEL_DIR" ]]; then
+        echo "install.sh: --offline needs the wheel folder $WHEEL_DIR (set WHEELHOUSE to use another): fill it on a machine with network using 'pip download -d $WHEEL_DIR <packages>', then copy it here." >&2
+        exit 1
+    fi
+    WHEEL_DIR="$(cd "$WHEEL_DIR" && pwd -P)"
+    printf '+ export PIP_NO_INDEX=1 PIP_FIND_LINKS=%s\n' "$WHEEL_DIR"
+    export PIP_NO_INDEX=1 PIP_FIND_LINKS="$WHEEL_DIR"
+fi
+
 # A cluster Python module exports PYTHONPATH, which breaks the venv's pip.
 unset PYTHONPATH PYTHONHOME
 
@@ -152,8 +193,15 @@ fi
 run make -C "$CRAB_DIR" core
 
 # 5. SbatchMan into the same venv.
+# Cluster role: pip is not called when the pinned version is already there (never asked on
+# --dry-run: the venv may not exist). The laptop role always installs the visualization extra,
+# because pip show cannot tell whether the extra's packages are present.
 if [[ "$ROLE" == cluster ]]; then
-    run "$VENV_BIN/pip" install "sbatchman==$SBATCHMAN_VERSION"
+    if [[ $DRY_RUN -eq 0 ]] && sbatchman_installed_version && [[ "$SBATCHMAN_FOUND" == "$SBATCHMAN_VERSION" ]]; then
+        echo "sbatchman $SBATCHMAN_VERSION is already installed, skipping pip"
+    else
+        run "$VENV_BIN/pip" install "sbatchman==$SBATCHMAN_VERSION"
+    fi
 else
     run "$VENV_BIN/pip" install -e "$CRAB_DIR[web]"
     run "$VENV_BIN/pip" install "sbatchman[visualization]==$SBATCHMAN_VERSION"
@@ -352,7 +400,8 @@ PY
 
 # check_jobs_file FILE OUTDIR: every config of the jobs file passes `crab validate`.
 check_jobs_file() {
-    local file="$1" outdir="$2" rel out json count=0
+    local file="$1" outdir="$2" rel out json count=0 total=0
+    local all=() picked=()
     rel="${file#"$ROOT"/}"
     mkdir -p "$outdir"
     if ! out="$("$VENV_BIN/python" -c "$EXTRACT_PY" "$file" "$outdir" "$CRAB_DIR" 2>&1)"; then
@@ -361,16 +410,26 @@ check_jobs_file() {
     fi
     while IFS= read -r json; do
         [[ -f "$json" ]] || continue
+        all+=("$json")
+    done <<<"$out"
+    total=${#all[@]}
+    if [[ $total -eq 0 ]]; then
+        check_fail "jobs file $rel" "no config to validate"
+        return 0
+    fi
+    # Without --full-check only the first and the last combination go through crab validate.
+    if [[ $FULL_CHECK -eq 1 || $total -le 2 ]]; then
+        picked=("${all[@]}")
+    else
+        picked=("${all[0]}" "${all[$((total - 1))]}")
+    fi
+    for json in "${picked[@]}"; do
         count=$((count + 1))
         if ! out="$(CRAB_PATH_WRAPPERS="$ROOT/crab-wrappers" CRAB_ROOT="$CRAB_DIR" "$VENV_BIN/crab" validate "$json" 2>&1)"; then
             check_fail "jobs file $rel" "crab validate: $(one_line "$out")"
             return 0
         fi
-    done <<<"$out"
-    if [[ $count -eq 0 ]]; then
-        check_fail "jobs file $rel" "no config to validate"
-        return 0
-    fi
+    done
     check_ok "jobs file $rel passes crab validate ($count config(s))"
 }
 
@@ -401,15 +460,15 @@ check_install() {
         found="$("$VENV_BIN/python" --version 2>&1 || true)"
         check_fail "python in the venv" "CRAB/.venv/bin/python needs 3.10 or newer, found: $(one_line "$found")"
     fi
-    if out="$("$VENV_BIN/pip" show sbatchman 2>&1)"; then
-        found="$(printf '%s\n' "$out" | sed -n 's/^Version: *//p' | head -n 1)"
+    if sbatchman_installed_version; then
+        found="$SBATCHMAN_FOUND"
         if [[ "$found" == "$SBATCHMAN_VERSION" ]]; then
             check_ok "sbatchman $SBATCHMAN_VERSION installed in the venv"
         else
             check_fail "sbatchman version" "found ${found:-none}, expected $SBATCHMAN_VERSION"
         fi
     else
-        check_fail "sbatchman version" "pip show sbatchman failed: $(one_line "$out")"
+        check_fail "sbatchman version" "pip show sbatchman failed: $(one_line "$PIP_SHOW_OUT")"
     fi
 
     # b. The two commands resolve inside the venv once env.sh has put it first on PATH.

@@ -35,8 +35,12 @@ core:
 """
 
 CORE_SH = """\
+echo "PIP_NO_INDEX=$PIP_NO_INDEX PIP_FIND_LINKS=$PIP_FIND_LINKS" >> "@LOG@/make-env.log"
 mkdir -p .venv/bin
 cp stub/python stub/pip stub/crab .venv/bin/
+if [ -n "$STUB_PIP_SHOW_VERSION" ] || [ -f "@LOG@/pip-installed" ]; then
+  cp stub/sbatchman .venv/bin/
+fi
 """
 
 # The venv's python is the interpreter running the tests (it has PyYAML), unless STUB_PYTHON_FAIL
@@ -64,16 +68,30 @@ jobs:
     command: crab worker --workdir "$SBATCHMAN_JOB_DIR"
 """
 
+# pip show answers with $STUB_PIP_SHOW_VERSION when set, else with the version the last
+# "pip install sbatchman==X" left behind, else fails like pip does for a missing package.
 STUB_PIP = """\
 #!/bin/sh
 echo "$@" >> "@LOG@/pip.log"
+echo "PIP_NO_INDEX=$PIP_NO_INDEX PIP_FIND_LINKS=$PIP_FIND_LINKS" >> "@LOG@/pip-env.log"
 if [ "$1" = show ]; then
-  printf 'Name: sbatchman\nVersion: %s\n' "${STUB_PIP_SHOW_VERSION:-${SBATCHMAN_VERSION:-2.0.4}}"
+  if [ -n "$STUB_PIP_SHOW_VERSION" ]; then
+    version="$STUB_PIP_SHOW_VERSION"
+  elif [ -f "@LOG@/pip-installed" ]; then
+    version="$(cat "@LOG@/pip-installed")"
+  else
+    echo "WARNING: Package(s) not found: $2" >&2
+    exit 1
+  fi
+  printf 'Name: sbatchman\nVersion: %s\n' "$version"
   exit 0
 fi
 for a in "$@"; do
   case "$a" in
-    sbatchman*) cp "$(dirname "$0")/../../stub/sbatchman" "$(dirname "$0")/sbatchman" ;;
+    sbatchman*)
+      echo "${a##*==}" > "@LOG@/pip-installed"
+      cp "$(dirname "$0")/../../stub/sbatchman" "$(dirname "$0")/sbatchman"
+      ;;
   esac
 done
 exit 0
@@ -116,7 +134,16 @@ fi
 exit 0
 """
 
-LOGS = {"pip.log", "sbatchman.log", "launch.log", "validate-wrappers", "crab.log"}
+LOGS = {
+    "pip.log",
+    "pip-env.log",
+    "pip-installed",
+    "make-env.log",
+    "sbatchman.log",
+    "launch.log",
+    "validate-wrappers",
+    "crab.log",
+}
 
 
 def _write(path: Path, text: str, executable: bool = False) -> None:
@@ -131,8 +158,8 @@ def make_umbrella(tmp_path: Path) -> Path:
     root.mkdir()
     shutil.copy2(REPO / "install.sh", root / "install.sh")
     _write(root / "CRAB" / "Makefile", MAKEFILE)
-    _write(root / "CRAB" / "stub" / "core.sh", CORE_SH)
     log = str(root.parent)
+    _write(root / "CRAB" / "stub" / "core.sh", CORE_SH.replace("@LOG@", log))
     _write(
         root / "CRAB" / "stub" / "python",
         STUB_PYTHON.replace("@PYTHON@", sys.executable),
@@ -160,6 +187,8 @@ def run_install(
     env.pop("PYTHONPATH", None)
     env.pop("SLURM_ACCOUNT", None)
     env.pop("SBATCHMAN_VERSION", None)
+    for name in ("PIP_NO_INDEX", "PIP_FIND_LINKS", "WHEELHOUSE"):
+        env.pop(name, None)
     if path_prefix is not None:
         env["PATH"] = f"{path_prefix}{os.pathsep}{env['PATH']}"
     env.update(env_extra or {})
@@ -394,6 +423,83 @@ def test_check_cluster_run_prints_ok_for_every_check(tmp_path):
     assert not any(call.split()[0] == "setup" for call in crab_calls(tmp_path))
 
 
+def twelve_combination_jobs_file() -> str:
+    """JOBS_FILE with two variables: nodes 1..3 times size 1..4 = 12 combinations."""
+    return JOBS_FILE.replace(
+        "  nodes:\n    - 2\n    - 4\n",
+        "  nodes:\n    - 1\n    - 2\n    - 3\n  size:\n    - 1\n    - 2\n    - 3\n    - 4\n",
+    ).replace('{"nodes": "{nodes}"', '{"nodes": "{nodes}", "size": "{size}"')
+
+
+def validated_names(tmp_path: Path, needle: str) -> list[str]:
+    """The JSON file names the stub crab was asked to validate, in call order."""
+    return [Path(c.split()[1]).name for c in crab_calls(tmp_path) if needle in c]
+
+
+def test_check_validates_only_the_first_and_last_combination_by_default(tmp_path):
+    root = make_umbrella(tmp_path)
+    _write(root / "benchmarks" / "qe" / "qe-alone.yaml", twelve_combination_jobs_file())
+    result = run_install(root, "--account", "TESTACCT")
+    assert result.returncode == 0, result.stderr
+    assert validated_names(tmp_path, "qe-alone") == ["qe-alone-1.json", "qe-alone-12.json"]
+    assert validated_names(tmp_path, "smoke") == ["smoke-1.json", "smoke-2.json"]
+    lines = check_lines(result)
+    assert all(ln.startswith("OK ") for ln in lines), lines
+    assert len(lines) == 8
+
+
+def test_check_runs_validate_once_for_a_one_combination_file(tmp_path):
+    root = make_umbrella(tmp_path)
+    one = JOBS_FILE.replace("  nodes:\n    - 2\n    - 4\n", "  nodes:\n    - 2\n")
+    _write(root / "benchmarks" / "qe" / "qe-alone.yaml", one)
+    result = run_install(root, "--account", "TESTACCT")
+    assert result.returncode == 0, result.stderr
+    assert validated_names(tmp_path, "qe-alone") == ["qe-alone-1.json"]
+    line_with(check_lines(result), "benchmarks/qe/qe-alone.yaml", "crab validate")
+
+
+def test_shipped_jobs_files_cost_8_validate_runs_by_default_and_28_with_full_check(tmp_path):
+    root = make_umbrella(tmp_path)
+    for old in (root / "benchmarks").rglob("*.yaml"):
+        old.unlink()
+    shipped = sorted((REPO / "benchmarks").glob("*/*.yaml"))
+    assert len(shipped) == 6
+    for src in shipped:
+        _write(root / "benchmarks" / src.parent.name / src.name, src.read_text())
+    default = run_install(root, "--account", "TESTACCT")
+    assert default.returncode == 0, default.stdout + default.stderr
+    assert len(crab_calls(tmp_path)) == 8  # 2 + 2 for the 12-combination files, 1 each for four
+    (tmp_path / "crab.log").unlink()
+    full = run_install(root, "--account", "TESTACCT", "--full-check")
+    assert full.returncode == 0, full.stdout + full.stderr
+    assert len(crab_calls(tmp_path)) == 28
+
+
+def test_full_check_validates_every_combination(tmp_path):
+    root = make_umbrella(tmp_path)
+    _write(root / "benchmarks" / "qe" / "qe-alone.yaml", twelve_combination_jobs_file())
+    result = run_install(root, "--account", "TESTACCT", "--full-check")
+    assert result.returncode == 0, result.stderr
+    assert validated_names(tmp_path, "qe-alone") == [f"qe-alone-{n}.json" for n in range(1, 13)]
+    assert len(validated_names(tmp_path, "smoke")) == 2
+    lines = check_lines(result)
+    assert all(ln.startswith("OK ") for ln in lines), lines
+    assert len(lines) == 8
+
+
+def test_a_failing_last_combination_still_fails_the_check(tmp_path):
+    root = make_umbrella(tmp_path)
+    _write(root / "benchmarks" / "qe" / "qe-alone.yaml", twelve_combination_jobs_file())
+    result = run_install(
+        root, "--account", "TESTACCT", env_extra={"STUB_VALIDATE_FAIL": "qe-alone-12"}
+    )
+    assert result.returncode == 1
+    failed = [ln for ln in check_lines(result) if ln.startswith("FAIL ")]
+    assert len(failed) == 1 and "benchmarks/qe/qe-alone.yaml" in failed[0], failed
+    assert "stub rejects this config" in failed[0]
+    assert "install.sh: 1 check(s) failed" in result.stdout.splitlines()
+
+
 def test_check_leaves_no_temporary_files_in_the_umbrella(tmp_path):
     root = make_umbrella(tmp_path)
     first = run_install(root, "--account", "TESTACCT")
@@ -617,8 +723,11 @@ def test_usage_lists_only_the_kept_flags(tmp_path):
     assert result.returncode == 0
     for gone in ("--no-setup", "--login-host", "--user", "--remote-dir", "wizard", "SITE_"):
         assert gone not in result.stdout, gone
-    for kept in ("--role", "--account", "--no-check", "--dry-run"):
+    for kept in ("--role", "--account", "--no-check", "--full-check", "--dry-run", "--offline"):
         assert kept in result.stdout, kept
+    assert "[--offline]" in result.stdout.split("\n\n")[0]
+    assert "WHEELHOUSE" in result.stdout
+    assert ".wheelhouse" in result.stdout
 
 
 def test_site_user_in_local_env_is_ignored_on_both_roles(tmp_path):
@@ -659,3 +768,191 @@ def test_usage_documents_no_check(tmp_path):
     assert "[--no-check]" in result.stdout.split("\n\n")[0]
     text = result.stdout
     assert "no Slurm job" in text
+
+
+def pip_lines(tmp_path: Path) -> list[str]:
+    log = tmp_path / "pip.log"
+    return log.read_text().splitlines() if log.exists() else []
+
+
+def install_lines(tmp_path: Path) -> list[str]:
+    return [ln for ln in pip_lines(tmp_path) if ln.startswith("install ")]
+
+
+def env_log(tmp_path: Path, name: str) -> list[str]:
+    log = tmp_path / name
+    return log.read_text().splitlines() if log.exists() else []
+
+
+def test_pip_is_skipped_when_the_pinned_sbatchman_is_installed(tmp_path):
+    root = make_umbrella(tmp_path)
+    result = run_install(
+        root, "--account", "TESTACCT", env_extra={"STUB_PIP_SHOW_VERSION": "2.0.4"}
+    )
+    assert result.returncode == 0, result.stderr
+    assert install_lines(tmp_path) == []
+    assert "sbatchman 2.0.4 is already installed, skipping pip" in result.stdout
+    assert "pip install" not in result.stdout
+
+
+def test_a_second_run_skips_pip_install_for_sbatchman(tmp_path):
+    root = make_umbrella(tmp_path)
+    first = run_install(root, "--account", "TESTACCT")
+    assert first.returncode == 0, first.stderr
+    assert "skipping pip" not in first.stdout
+    assert install_lines(tmp_path) == ["install sbatchman==2.0.4"]
+    second = run_install(root, "--account", "TESTACCT")
+    assert second.returncode == 0, second.stderr
+    assert "sbatchman 2.0.4 is already installed, skipping pip" in second.stdout
+    assert install_lines(tmp_path) == ["install sbatchman==2.0.4"]
+
+
+def test_another_installed_version_still_runs_pip_install(tmp_path):
+    root = make_umbrella(tmp_path)
+    result = run_install(
+        root,
+        "--account",
+        "TESTACCT",
+        "--no-check",
+        env_extra={"STUB_PIP_SHOW_VERSION": "1.0.0"},
+    )
+    assert result.returncode == 0, result.stderr
+    assert install_lines(tmp_path) == ["install sbatchman==2.0.4"]
+    assert "skipping pip" not in result.stdout
+    assert "pip install sbatchman==2.0.4" in result.stdout
+
+
+def test_a_missing_sbatchman_runs_pip_install(tmp_path):
+    root = make_umbrella(tmp_path)
+    result = run_install(root, "--account", "TESTACCT", "--no-check")
+    assert result.returncode == 0, result.stderr
+    assert pip_lines(tmp_path)[:2] == ["show sbatchman", "install sbatchman==2.0.4"]
+    assert "skipping pip" not in result.stdout
+
+
+def test_dry_run_does_not_ask_pip_anything(tmp_path):
+    root = make_umbrella(tmp_path)
+    result = run_install(
+        root,
+        "--account",
+        "TESTACCT",
+        "--dry-run",
+        env_extra={"STUB_PIP_SHOW_VERSION": "2.0.4"},
+    )
+    assert result.returncode == 0, result.stderr
+    assert "pip install sbatchman==2.0.4" in result.stdout
+    assert "skipping pip" not in result.stdout
+    assert not (tmp_path / "pip.log").exists()
+
+
+def test_laptop_role_installs_the_visualization_extra_even_when_the_pin_is_installed(tmp_path):
+    root = make_umbrella(tmp_path)
+    result = run_install(
+        root, "--role", "laptop", env_extra={"STUB_PIP_SHOW_VERSION": "2.0.4"}
+    )
+    assert result.returncode == 0, result.stderr
+    installs = install_lines(tmp_path)
+    assert len(installs) == 2, installs
+    assert "[web]" in installs[0]
+    assert installs[1] == "install sbatchman[visualization]==2.0.4"
+    assert "skipping pip" not in result.stdout
+
+
+def test_without_offline_pip_gets_no_index_settings(tmp_path):
+    root = make_umbrella(tmp_path)
+    result = run_install(root, "--account", "TESTACCT", "--no-check")
+    assert result.returncode == 0, result.stderr
+    assert env_log(tmp_path, "make-env.log") == ["PIP_NO_INDEX= PIP_FIND_LINKS="]
+    assert set(env_log(tmp_path, "pip-env.log")) == {"PIP_NO_INDEX= PIP_FIND_LINKS="}
+    assert "PIP_NO_INDEX" not in result.stdout
+
+
+@pytest.mark.parametrize("role", ["cluster", "laptop"])
+def test_offline_sets_pip_to_the_default_wheel_folder_for_make_and_pip(tmp_path, role):
+    root = make_umbrella(tmp_path)
+    wheels = root / ".wheelhouse"
+    wheels.mkdir()
+    result = run_install(root, "--role", role, "--account", "TESTACCT", "--offline")
+    assert result.returncode == 0, result.stderr
+    expected = f"PIP_NO_INDEX=1 PIP_FIND_LINKS={wheels}"
+    assert env_log(tmp_path, "make-env.log") == [expected]
+    pip_env = env_log(tmp_path, "pip-env.log")
+    assert pip_env and set(pip_env) == {expected}
+    assert f"+ export PIP_NO_INDEX=1 PIP_FIND_LINKS={wheels}" in result.stdout
+
+
+def test_wheelhouse_variable_overrides_the_default_folder(tmp_path):
+    root = make_umbrella(tmp_path)
+    (root / ".wheelhouse").mkdir()
+    other = tmp_path / "other-wheels"
+    other.mkdir()
+    result = run_install(
+        root,
+        "--account",
+        "TESTACCT",
+        "--offline",
+        env_extra={"WHEELHOUSE": str(other)},
+    )
+    assert result.returncode == 0, result.stderr
+    expected = f"PIP_NO_INDEX=1 PIP_FIND_LINKS={other}"
+    assert env_log(tmp_path, "make-env.log") == [expected]
+    assert set(env_log(tmp_path, "pip-env.log")) == {expected}
+
+
+def test_a_relative_wheelhouse_is_made_absolute(tmp_path):
+    root = make_umbrella(tmp_path)
+    (tmp_path / "rel-wheels").mkdir()
+    result = run_install(
+        root,
+        "--account",
+        "TESTACCT",
+        "--offline",
+        "--no-check",
+        env_extra={"WHEELHOUSE": "rel-wheels"},
+    )
+    assert result.returncode == 0, result.stderr
+    assert env_log(tmp_path, "make-env.log") == [
+        f"PIP_NO_INDEX=1 PIP_FIND_LINKS={tmp_path / 'rel-wheels'}"
+    ]
+
+
+@pytest.mark.parametrize("dry_run", [False, True])
+def test_offline_without_the_wheel_folder_stops_before_any_step(tmp_path, dry_run):
+    root = make_umbrella(tmp_path)
+    before = listing(root)
+    args = ["--account", "TESTACCT", "--offline"] + (["--dry-run"] if dry_run else [])
+    result = run_install(root, *args)
+    assert result.returncode == 1
+    assert str(root / ".wheelhouse") in result.stderr
+    assert "pip download" in result.stderr
+    assert "WHEELHOUSE" in result.stderr
+    assert len(result.stderr.strip().splitlines()) == 1
+    assert "+ " not in result.stdout
+    assert listing(root) == before
+    assert not (tmp_path / "pip.log").exists()
+    assert not (tmp_path / "make-env.log").exists()
+
+
+def test_offline_with_a_missing_wheelhouse_variable_names_that_folder(tmp_path):
+    root = make_umbrella(tmp_path)
+    (root / ".wheelhouse").mkdir()
+    missing = tmp_path / "no-such-wheels"
+    result = run_install(
+        root, "--account", "TESTACCT", "--offline", env_extra={"WHEELHOUSE": str(missing)}
+    )
+    assert result.returncode == 1
+    assert str(missing) in result.stderr
+    assert not (tmp_path / "pip.log").exists()
+
+
+def test_dry_run_offline_prints_the_environment_and_writes_nothing(tmp_path):
+    root = make_umbrella(tmp_path)
+    wheels = root / ".wheelhouse"
+    wheels.mkdir()
+    before = listing(root)
+    result = run_install(root, "--account", "TESTACCT", "--offline", "--dry-run")
+    assert result.returncode == 0, result.stderr
+    assert f"+ export PIP_NO_INDEX=1 PIP_FIND_LINKS={wheels}" in result.stdout
+    assert listing(root) == before
+    assert not (tmp_path / "pip.log").exists()
+    assert not (tmp_path / "make-env.log").exists()
