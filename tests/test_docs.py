@@ -240,7 +240,7 @@ def test_relative_links_resolve_and_anchors_match_a_heading():
 
 def test_every_install_flag_named_in_the_docs_exists():
     flags = install_flags()
-    assert {"--role", "--account", "--no-setup", "--dry-run", "--login-host"} <= flags
+    assert {"--role", "--account", "--no-check", "--dry-run"} <= flags
     for path in _all_docs():
         assert flag_problems(path.read_text(), flags) == [], path.name
 

@@ -18,7 +18,7 @@ source env.sh
 - `module load python` gives Python 3.10 or newer, which CRAB needs. The installer stops with a message if it is older.
 - `./install.sh --account <YOUR_ACCOUNT>` installs CRAB and SbatchMan into `CRAB/.venv` and fills the Slurm configs
   file with your account. It prints every command before it runs it, and it is safe to run again.
-- The installer then starts the `crab setup` wizard, which asks which benchmarks to register. Skip it with `--no-setup`.
+- After `source env.sh`, `crab setup` registers the benchmarks you will run.
 - The install ends with a self-check that submits no job. It passes when it prints `install.sh: all checks passed`.
 - `source env.sh` activates the environment. Run it in every new shell.
 

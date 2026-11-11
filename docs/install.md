@@ -44,16 +44,16 @@ The installer prints every command with a `+` in front before it runs it. It doe
 4. Creates `CRAB/.venv`, installs CRAB into it, then installs SbatchMan at the version this umbrella pins.
 5. Saves your account, then fills `configs/leonardo.yaml` into `.local/configs.leonardo.yaml` (account, partition, qos, CRAB path).
 6. Runs `sbatchman init` in each folder of `benchmarks/` without a `SbatchMan/` yet (each is one project), then writes `env.sh`.
-7. Starts the `crab setup` wizard (below), then runs the self-check (next section).
+7. Runs the self-check (next section).
 
-Running `./install.sh` again is safe: it prints the same commands and rewrites only what changed. `--no-setup` skips the wizard.
+Running `./install.sh` again is safe: it prints the same commands and rewrites only what changed.
 `--dry-run` prints every command and file write and runs and writes nothing.
 
 ### The setup wizard
 
 `crab setup` registers the benchmarks you will run: it turns a recipe into a receipt, which is how a job finds the binary. In
-the menu choose "Install or configure a supported benchmark", tick suites with Space, confirm with Enter. If you skipped the
-wizard with `--no-setup`, run `crab setup` later after `source env.sh`. Answers for the shipped benchmarks:
+the menu choose "Install or configure a supported benchmark", tick suites with Space, confirm with Enter. Run it after
+`source env.sh`. Answers for the shipped benchmarks:
 
 | Prompt | Blink (every Blink jobs file) | Quantum ESPRESSO (the `qe` jobs files) |
 |---|---|---|
@@ -114,26 +114,16 @@ Python 3.10 or newer and a clone of the same umbrella.
 ```bash
 git clone --recurse-submodules <umbrella-url> <umbrella-dir>
 cd <umbrella-dir>
-./install.sh --role laptop --login-host <login-host> --user <your-user> --remote-dir <umbrella-dir>
+./install.sh --role laptop
 source env.sh
 ```
 
-- `--role laptop` installs CRAB with its web dashboard and SbatchMan with its plots into `CRAB/.venv`. It skips the account,
-  the configs file and the wizard, and writes nothing into your home folder.
-- `--login-host`, `--user` and `--remote-dir` are the cluster's login host, your user there and the path of the umbrella's folder
-  on the cluster (the `<umbrella-dir>` of the cluster install). They only fill the help block printed at the end and nothing is
-  saved. `site/local.env` may hold `SITE_LOGIN_HOST`, `SITE_USER` and `SITE_REMOTE_DIR` instead, and the flags win. The
-  installer refuses them with `--role cluster`.
+- `--role laptop` installs CRAB with its web dashboard and SbatchMan with its plots into `CRAB/.venv`. It skips the account
+  and the configs file, and writes nothing into your home folder.
 - `source env.sh` also sets `CRAB_WEB_PORT` to 8899 unless you set it.
 
-The laptop self-check runs the same checks except the dry-run launch. After `install.sh finished: role laptop` the installer
-prints a block you use next (fetching and plotting results is in [Results](results.md)):
-
-- `crab web: add the cluster`: the values to type into the dashboard's Remotes page. Start `crab web` from the shell that has
-  your ssh agent. Never press "Install CRAB" for this cluster: the umbrella already installed it.
-- `sbatchman fetch: results to this laptop`: a `remotes-config.toml` block to save as `~/.config/sbatchman/remotes-config.toml`,
-  merged by hand if the file exists.
-- `start the tools`: `crab web` serves `http://127.0.0.1:8899`, and `sbatchman visualize` serves `http://127.0.0.1:8765`.
+The laptop self-check runs the same checks except the dry-run launch. Then `crab web` serves `http://127.0.0.1:8899` and
+`sbatchman visualize` serves `http://127.0.0.1:8765` (fetching and plotting results is in [Results](results.md)).
 
 ## Update
 

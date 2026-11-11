@@ -12,6 +12,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 REPO = Path(__file__).resolve().parent.parent
 
 TOKEN_TEMPLATE = """\
@@ -96,9 +98,7 @@ exit 0
 
 STUB_CRAB = """\
 #!/bin/sh
-if [ "$1" = setup ]; then
-  touch "@LOG@/crab-setup-called"
-fi
+echo "$*" >> "@LOG@/crab.log"
 if [ "$1" = validate ]; then
   mkdir -p "@LOG@/validated"
   cp "$2" "@LOG@/validated/$(basename "$2")"
@@ -116,7 +116,7 @@ fi
 exit 0
 """
 
-LOGS = {"pip.log", "sbatchman.log", "launch.log", "validate-wrappers"}
+LOGS = {"pip.log", "sbatchman.log", "launch.log", "validate-wrappers", "crab.log"}
 
 
 def _write(path: Path, text: str, executable: bool = False) -> None:
@@ -173,6 +173,12 @@ def run_install(
     )
 
 
+def crab_calls(tmp_path: Path) -> list[str]:
+    """The arguments of every call the stub crab received (empty when it was never called)."""
+    log = tmp_path / "crab.log"
+    return log.read_text().splitlines() if log.exists() else []
+
+
 def listing(root: Path) -> list[str]:
     return sorted(str(p.relative_to(root)) for p in root.rglob("*"))
 
@@ -193,7 +199,7 @@ def hashes(root: Path) -> dict[str, str]:
 def test_dry_run_prints_commands_and_writes_nothing(tmp_path):
     root = make_umbrella(tmp_path)
     before = listing(root)
-    result = run_install(root, "--dry-run", "--account", "TESTACCT", "--no-setup")
+    result = run_install(root, "--dry-run", "--account", "TESTACCT")
     assert result.returncode == 0, result.stderr
     plus = [line for line in result.stdout.splitlines() if line.startswith("+ ")]
     joined = "\n".join(plus)
@@ -209,7 +215,7 @@ def test_dry_run_prints_commands_and_writes_nothing(tmp_path):
 
 def test_full_run_installs_everything(tmp_path):
     root = make_umbrella(tmp_path)
-    result = run_install(root, "--account", "TESTACCT", "--no-setup")
+    result = run_install(root, "--account", "TESTACCT")
     assert result.returncode == 0, result.stderr
     link = root / "CRAB" / "wrappers"
     assert link.is_symlink()
@@ -224,7 +230,7 @@ def test_full_run_installs_everything(tmp_path):
     assert 'SLURM_ACCOUNT="TESTACCT"' in (root / "site" / "local.env").read_text()
     assert (root / "benchmarks" / "blink" / "SbatchMan").is_dir()
     assert (root / "benchmarks" / "qe" / "SbatchMan").is_dir()
-    assert not (tmp_path / "crab-setup-called").exists()
+    assert not any(call.split()[0] == "setup" for call in crab_calls(tmp_path))
     assert "+ make -C" in result.stdout
     assert "+ " + str(root / "CRAB" / ".venv" / "bin" / "pip") + " install" in result.stdout
     assert "install.sh finished: role cluster" in result.stdout
@@ -232,14 +238,14 @@ def test_full_run_installs_everything(tmp_path):
 
 def test_second_run_changes_nothing(tmp_path):
     root = make_umbrella(tmp_path)
-    first = run_install(root, "--account", "TESTACCT", "--no-setup")
+    first = run_install(root, "--account", "TESTACCT")
     assert first.returncode == 0, first.stderr
 
     def snapshot():
         return {k: v for k, v in hashes(root).items() if Path(k).name not in LOGS}
 
     before = snapshot()
-    second = run_install(root, "--account", "TESTACCT", "--no-setup")
+    second = run_install(root, "--account", "TESTACCT")
     assert second.returncode == 0, second.stderr
     assert snapshot() == before
     assert "+ write" not in second.stdout
@@ -260,7 +266,7 @@ def test_laptop_role_installs_web_extra_and_no_configs(tmp_path):
     assert not (root / "site" / "local.env").exists()
     assert (root / "benchmarks" / "blink" / "SbatchMan").is_dir()
     assert (root / "benchmarks" / "qe" / "SbatchMan").is_dir()
-    assert not (tmp_path / "crab-setup-called").exists()
+    assert not any(call.split()[0] == "setup" for call in crab_calls(tmp_path))
 
 
 def test_old_python_stops_before_changing_anything(tmp_path):
@@ -281,7 +287,7 @@ def test_old_python_stops_before_changing_anything(tmp_path):
 
 def test_no_account_and_no_terminal_exits_2(tmp_path):
     root = make_umbrella(tmp_path)
-    result = run_install(root, "--no-setup")
+    result = run_install(root)
     assert result.returncode == 2
     assert "--account" in result.stderr
     assert not (root / "site" / "local.env").exists()
@@ -290,7 +296,7 @@ def test_no_account_and_no_terminal_exits_2(tmp_path):
 def test_local_env_is_used_and_account_flag_replaces_one_line(tmp_path):
     root = make_umbrella(tmp_path)
     _write(root / "site" / "local.env", 'SLURM_ACCOUNT="FROMFILE"\nSLURM_QOS="myqos"\n')
-    result = run_install(root, "--no-setup")
+    result = run_install(root)
     assert result.returncode == 0, result.stderr
     configs = (root / ".local" / "configs.leonardo.yaml").read_text()
     assert "FROMFILE" in configs
@@ -298,7 +304,7 @@ def test_local_env_is_used_and_account_flag_replaces_one_line(tmp_path):
     assert (root / "site" / "local.env").read_text() == (
         'SLURM_ACCOUNT="FROMFILE"\nSLURM_QOS="myqos"\n'
     )
-    result = run_install(root, "--account", "X", "--no-setup")
+    result = run_install(root, "--account", "X")
     assert result.returncode == 0, result.stderr
     assert (root / "site" / "local.env").read_text() == 'SLURM_ACCOUNT="X"\nSLURM_QOS="myqos"\n'
     assert "account: X\n" in (root / ".local" / "configs.leonardo.yaml").read_text()
@@ -307,7 +313,7 @@ def test_local_env_is_used_and_account_flag_replaces_one_line(tmp_path):
 def test_sbatchman_version_comes_from_the_environment(tmp_path):
     root = make_umbrella(tmp_path)
     result = run_install(
-        root, "--account", "TESTACCT", "--no-setup", env_extra={"SBATCHMAN_VERSION": "9.9.9"}
+        root, "--account", "TESTACCT", env_extra={"SBATCHMAN_VERSION": "9.9.9"}
     )
     assert result.returncode == 0, result.stderr
     pip_log = (tmp_path / "pip.log").read_text()
@@ -330,7 +336,7 @@ def test_a_stray_benchmarks_folder_without_yaml_gets_no_sbatchman_init(tmp_path)
     _write(root / "benchmarks" / "__pycache__" / "parser.cpython-314.pyc", "x")
     (root / "benchmarks" / "notes").mkdir()
 
-    result = run_install(root, "--account", "TESTACCT", "--no-setup")
+    result = run_install(root, "--account", "TESTACCT")
 
     assert result.returncode == 0, result.stderr
     assert (root / "benchmarks" / "blink" / "SbatchMan").is_dir()
@@ -356,7 +362,7 @@ def line_with(lines: list[str], *needles: str) -> str:
 
 def test_check_cluster_run_prints_ok_for_every_check(tmp_path):
     root = make_umbrella(tmp_path)
-    result = run_install(root, "--account", "TESTACCT", "--no-setup")
+    result = run_install(root, "--account", "TESTACCT")
     assert result.returncode == 0, result.stderr
     lines = check_lines(result)
     assert all(ln.startswith("OK ") for ln in lines), lines
@@ -385,12 +391,12 @@ def test_check_cluster_run_prints_ok_for_every_check(tmp_path):
     launch = (tmp_path / "launch.log").read_text()
     assert f"{root / 'benchmarks' / 'blink'}: launch -f smoke.yaml --dry-run" in launch
     assert "SBATCHMAN_CLUSTER_NAME=leonardo" in launch
-    assert not (tmp_path / "crab-setup-called").exists()
+    assert not any(call.split()[0] == "setup" for call in crab_calls(tmp_path))
 
 
 def test_check_leaves_no_temporary_files_in_the_umbrella(tmp_path):
     root = make_umbrella(tmp_path)
-    first = run_install(root, "--account", "TESTACCT", "--no-setup")
+    first = run_install(root, "--account", "TESTACCT")
     assert first.returncode == 0, first.stderr
     assert not list(root.rglob("*.json"))
 
@@ -401,7 +407,6 @@ def test_check_failed_validate_names_the_file_and_later_checks_still_run(tmp_pat
         root,
         "--account",
         "TESTACCT",
-        "--no-setup",
         env_extra={"STUB_VALIDATE_FAIL": "qe-alone"},
     )
     assert result.returncode == 1
@@ -423,7 +428,7 @@ def test_check_failed_validate_names_the_file_and_later_checks_still_run(tmp_pat
 def test_check_failed_dry_run_launch_fails_the_run(tmp_path):
     root = make_umbrella(tmp_path)
     result = run_install(
-        root, "--account", "TESTACCT", "--no-setup", env_extra={"STUB_LAUNCH_FAIL": "1"}
+        root, "--account", "TESTACCT", env_extra={"STUB_LAUNCH_FAIL": "1"}
     )
     assert result.returncode == 1
     lines = check_lines(result)
@@ -437,7 +442,7 @@ def test_check_failed_dry_run_launch_fails_the_run(tmp_path):
 def test_check_empty_wrappers_folder_fails_but_the_rest_runs(tmp_path):
     root = make_umbrella(tmp_path)
     (root / "crab-wrappers" / "README.md").unlink()
-    result = run_install(root, "--account", "TESTACCT", "--no-setup")
+    result = run_install(root, "--account", "TESTACCT")
     assert result.returncode == 1
     lines = check_lines(result)
     failed = [ln for ln in lines if ln.startswith("FAIL ")]
@@ -448,7 +453,7 @@ def test_check_empty_wrappers_folder_fails_but_the_rest_runs(tmp_path):
 def test_check_old_venv_python_fails_loudly_and_the_other_checks_still_run(tmp_path):
     root = make_umbrella(tmp_path)
     result = run_install(
-        root, "--account", "TESTACCT", "--no-setup", env_extra={"STUB_PYTHON_FAIL": "1"}
+        root, "--account", "TESTACCT", env_extra={"STUB_PYTHON_FAIL": "1"}
     )
     assert result.returncode == 1
     lines = check_lines(result)
@@ -462,7 +467,7 @@ def test_check_old_venv_python_fails_loudly_and_the_other_checks_still_run(tmp_p
 def test_check_wrong_sbatchman_version_fails_with_both_versions(tmp_path):
     root = make_umbrella(tmp_path)
     result = run_install(
-        root, "--account", "TESTACCT", "--no-setup", env_extra={"STUB_PIP_SHOW_VERSION": "1.0.0"}
+        root, "--account", "TESTACCT", env_extra={"STUB_PIP_SHOW_VERSION": "1.0.0"}
     )
     assert result.returncode == 1
     failed = [ln for ln in check_lines(result) if ln.startswith("FAIL ")]
@@ -476,7 +481,6 @@ def test_no_check_skips_the_whole_block(tmp_path):
         root,
         "--account",
         "TESTACCT",
-        "--no-setup",
         "--no-check",
         env_extra={"STUB_VALIDATE_FAIL": "smoke", "STUB_LAUNCH_FAIL": "1"},
     )
@@ -493,7 +497,7 @@ def test_no_check_skips_the_whole_block(tmp_path):
 def test_dry_run_lists_the_checks_and_runs_none(tmp_path):
     root = make_umbrella(tmp_path)
     before = listing(root)
-    result = run_install(root, "--dry-run", "--account", "TESTACCT", "--no-setup")
+    result = run_install(root, "--dry-run", "--account", "TESTACCT")
     assert result.returncode == 0, result.stderr
     would = [ln for ln in result.stdout.splitlines() if ln.startswith("would check: ")]
     assert len(would) == 8, would
@@ -514,21 +518,21 @@ def test_dry_run_lists_the_checks_and_runs_none(tmp_path):
 
 def test_dry_run_with_no_check_lists_nothing(tmp_path):
     root = make_umbrella(tmp_path)
-    result = run_install(root, "--dry-run", "--no-check", "--account", "TESTACCT", "--no-setup")
+    result = run_install(root, "--dry-run", "--no-check", "--account", "TESTACCT")
     assert result.returncode == 0, result.stderr
     assert "would check" not in result.stdout
 
 
 def test_second_run_prints_the_same_check_lines_and_changes_no_file(tmp_path):
     root = make_umbrella(tmp_path)
-    first = run_install(root, "--account", "TESTACCT", "--no-setup")
+    first = run_install(root, "--account", "TESTACCT")
     assert first.returncode == 0, first.stderr
 
     def snapshot():
         return {k: v for k, v in hashes(root).items() if Path(k).name not in LOGS}
 
     before = snapshot()
-    second = run_install(root, "--account", "TESTACCT", "--no-setup")
+    second = run_install(root, "--account", "TESTACCT")
     assert second.returncode == 0, second.stderr
     assert check_lines(second) == check_lines(first)
     assert len(check_lines(second)) == 8
@@ -562,32 +566,76 @@ def test_laptop_role_dry_run_lists_no_launch_check(tmp_path):
     assert not any("launch" in ln for ln in would)
 
 
-def test_laptop_role_failed_validate_exits_1_and_still_prints_the_help_block(tmp_path):
+def test_laptop_role_failed_validate_exits_1(tmp_path):
     root = make_umbrella(tmp_path)
     result = run_install(root, "--role", "laptop", env_extra={"STUB_VALIDATE_FAIL": "smoke"})
     assert result.returncode == 1
     assert "install.sh: 1 check(s) failed" in result.stdout.splitlines()
-    assert "== start the tools" in result.stdout.splitlines()
 
 
-def test_the_check_needs_no_account_and_no_wizard(tmp_path):
+def test_the_check_needs_no_account_on_the_laptop(tmp_path):
     root = make_umbrella(tmp_path)
     result = run_install(root, "--role", "laptop")
     assert result.returncode == 0, result.stderr
     assert not (root / "site" / "local.env").exists()
-    assert not (tmp_path / "crab-setup-called").exists()
-    # With the wizard on, the cluster role runs it once, before the check.
-    cluster = run_install(root, "--account", "TESTACCT")
+
+
+def test_cluster_run_never_calls_crab_setup_and_reads_no_stdin(tmp_path):
+    root = make_umbrella(tmp_path)
+    result = run_install(root, "--account", "TESTACCT")
+    assert result.returncode == 0, result.stderr
+    calls = crab_calls(tmp_path)
+    assert calls, "the self-check should have called crab validate"
+    assert all(call.split()[0] == "validate" for call in calls), calls
+    assert "crab setup" not in result.stdout
+    assert "wizard" not in result.stdout
+
+
+@pytest.mark.parametrize(
+    "flag",
+    [
+        ("--no-setup",),
+        ("--login-host", "login.example.org"),
+        ("--user", "alice"),
+        ("--remote-dir", "~/umb"),
+    ],
+)
+@pytest.mark.parametrize("role", ["cluster", "laptop"])
+def test_removed_flags_are_unknown_arguments(tmp_path, role, flag):
+    root = make_umbrella(tmp_path)
+    before = listing(root)
+    result = run_install(root, "--role", role, "--account", "T", *flag)
+    assert result.returncode == 2
+    assert f"install.sh: unknown argument: {flag[0]}" in result.stderr
+    assert "Usage:" in result.stderr
+    assert listing(root) == before
+
+
+def test_usage_lists_only_the_kept_flags(tmp_path):
+    root = make_umbrella(tmp_path)
+    result = run_install(root, "--help")
+    assert result.returncode == 0
+    for gone in ("--no-setup", "--login-host", "--user", "--remote-dir", "wizard", "SITE_"):
+        assert gone not in result.stdout, gone
+    for kept in ("--role", "--account", "--no-check", "--dry-run"):
+        assert kept in result.stdout, kept
+
+
+def test_site_user_in_local_env_is_ignored_on_both_roles(tmp_path):
+    root = make_umbrella(tmp_path)
+    (root / "site" / "local.env").write_text('SLURM_ACCOUNT="TESTACCT"\nSITE_USER=x\n')
+    cluster = run_install(root)
     assert cluster.returncode == 0, cluster.stderr
-    assert (tmp_path / "crab-setup-called").exists()
-    out = cluster.stdout
-    assert out.index("crab setup") < out.index("OK python")
+    assert "SITE_USER" not in cluster.stdout + cluster.stderr
+    laptop = run_install(root, "--role", "laptop")
+    assert laptop.returncode == 0, laptop.stderr
+    assert "SITE_USER" not in laptop.stdout + laptop.stderr
 
 
 def test_a_jobs_file_without_an_embedded_config_fails_naming_the_file(tmp_path):
     root = make_umbrella(tmp_path)
     _write(root / "benchmarks" / "blink" / "smoke.yaml", "a: 1\n")
-    result = run_install(root, "--account", "TESTACCT", "--no-setup")
+    result = run_install(root, "--account", "TESTACCT")
     assert result.returncode == 1
     failed = [ln for ln in check_lines(result) if ln.startswith("FAIL ")]
     assert len(failed) == 1 and "benchmarks/blink/smoke.yaml" in failed[0], failed
@@ -596,7 +644,7 @@ def test_a_jobs_file_without_an_embedded_config_fails_naming_the_file(tmp_path):
 def test_missing_smoke_file_fails_the_dry_run_launch_check(tmp_path):
     root = make_umbrella(tmp_path)
     (root / "benchmarks" / "blink" / "smoke.yaml").unlink()
-    result = run_install(root, "--account", "TESTACCT", "--no-setup")
+    result = run_install(root, "--account", "TESTACCT")
     assert result.returncode == 1
     failed = [ln for ln in check_lines(result) if ln.startswith("FAIL ")]
     assert len(failed) == 1 and "launch --dry-run" in failed[0], failed

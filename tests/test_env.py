@@ -37,7 +37,7 @@ def make_env_umbrella(tmp_path: Path) -> Path:
 
 
 def install_cluster(root: Path) -> subprocess.CompletedProcess:
-    result = run_install(root, "--account", "TESTACCT", "--no-setup")
+    result = run_install(root, "--account", "TESTACCT")
     assert result.returncode == 0, result.stderr
     return result
 
@@ -177,7 +177,7 @@ def test_zsh_sources_it_like_bash(tmp_path):
 
 def test_dry_run_lists_the_env_write_and_creates_no_file(tmp_path):
     root = make_env_umbrella(tmp_path)
-    result = run_install(root, "--dry-run", "--account", "TESTACCT", "--no-setup")
+    result = run_install(root, "--dry-run", "--account", "TESTACCT")
     assert result.returncode == 0, result.stderr
     assert f"+ write {root / 'env.sh'}" in result.stdout.splitlines()
     assert not (root / "env.sh").exists()
