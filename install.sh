@@ -9,12 +9,17 @@ SBATCHMAN_VERSION="${SBATCHMAN_VERSION:-2.0.4}"
 
 usage() {
     cat <<'EOF'
-Usage: ./install.sh [--role cluster|laptop] [--account NAME] [--no-check] [--full-check]
-                    [--dry-run] [--offline] [-h|--help]
+Usage: ./install.sh [--role cluster|laptop] [--account NAME] [--skip-account-check]
+                    [--no-check] [--full-check] [--dry-run] [--offline] [-h|--help]
 
   --role ROLE      cluster (default): CRAB, SbatchMan and the configs file.
                    laptop: CRAB with the web dashboard and SbatchMan with its plots.
-  --account NAME   Slurm account to charge; saved in site/local.env (cluster role).
+  --account NAME   Slurm account to charge; saved in site/local.env (cluster role). It is
+                   resolved and checked first: with sacctmgr on PATH, a name that is not one of
+                   your Slurm accounts stops the run before anything is installed.
+  --skip-account-check
+                   do not look the account up with sacctmgr (the name is still checked for
+                   allowed characters).
   --no-check       skip the self-check at the end. The check prints one OK or FAIL line per
                    item (tool versions, commands in the venv, wrappers, every jobs file
                    through 'crab validate' and, for the cluster role, a dry-run launch of
@@ -31,6 +36,7 @@ EOF
 
 ROLE=cluster
 ACCOUNT_FLAG=""
+SKIP_ACCOUNT_CHECK=0
 NO_CHECK=0
 FULL_CHECK=0
 DRY_RUN=0
@@ -47,6 +53,10 @@ while [[ $# -gt 0 ]]; do
             [[ $# -ge 2 ]] || { usage >&2; exit 2; }
             ACCOUNT_FLAG="$2"
             shift 2
+            ;;
+        --skip-account-check)
+            SKIP_ACCOUNT_CHECK=1
+            shift
             ;;
         --no-check)
             NO_CHECK=1
@@ -169,6 +179,96 @@ if ! python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)' 
     exit 1
 fi
 
+# 1b. Cluster only: the Slurm account, resolved and checked now, so a wrong one stops the run
+# within a second and not after the slow steps. Order: --account, then site/local.env (and
+# site/*.env), then one question. The account is written to site/local.env only after the check.
+if [[ "$ROLE" == cluster ]]; then
+    LOCAL_ENV="$ROOT/site/local.env"
+    SLURM_ACCOUNT=""
+    SLURM_PARTITION=""
+    SLURM_QOS=""
+    SBATCHMAN_CLUSTER_NAME=""
+    # shellcheck source=/dev/null
+    [[ -f "$ROOT/site/leonardo.env" ]] && source "$ROOT/site/leonardo.env"
+    # shellcheck source=/dev/null
+    [[ -f "$LOCAL_ENV" ]] && source "$LOCAL_ENV"
+
+    # set_account NAME: create or replace the one SLURM_ACCOUNT line of site/local.env.
+    set_account() {
+        local name="$1" old new="" line replaced=0
+        read_file old "$LOCAL_ENV"
+        while IFS= read -r line || [[ -n "$line" ]]; do
+            if [[ "$line" == SLURM_ACCOUNT=* ]]; then
+                if [[ $replaced -eq 0 ]]; then
+                    new+="SLURM_ACCOUNT=\"$name\""$'\n'
+                    replaced=1
+                fi
+            else
+                new+="$line"$'\n'
+            fi
+        done <<<"${old%$'\n'}"
+        if [[ $replaced -eq 0 ]]; then
+            new+="SLURM_ACCOUNT=\"$name\""$'\n'
+        fi
+        # An empty file leaves one blank line from the here-string: start clean.
+        if [[ -z "$old" ]]; then
+            new="SLURM_ACCOUNT=\"$name\""$'\n'
+        fi
+        if [[ "$new" != "$old" ]]; then
+            write_file "$LOCAL_ENV" "$new"
+        fi
+        SLURM_ACCOUNT="$name"
+    }
+
+    # check_slurm_account NAME: NAME must be one of the user's Slurm associations (one lookup,
+    # whole-line match, case-sensitive). No sacctmgr, or a lookup that cannot answer (non-zero
+    # exit, empty output: accounting unreachable), is a note and the run goes on; a lookup that
+    # answers without NAME stops the run.
+    check_slurm_account() {
+        local name="$1" user out line
+        if [[ $SKIP_ACCOUNT_CHECK -eq 1 ]]; then
+            echo "install.sh: note: the account $name was not checked against Slurm (--skip-account-check)" >&2
+            return 0
+        fi
+        if ! command -v sacctmgr >/dev/null 2>&1; then
+            echo "install.sh: note: sacctmgr is not on PATH, so the account $name was not checked against Slurm." >&2
+            return 0
+        fi
+        user="${USER:-$(id -un 2>/dev/null || true)}"
+        if [[ -z "$user" ]] || ! out="$(sacctmgr -n -P show assoc user="$user" format=account 2>/dev/null)" || [[ -z "${out//[[:space:]]/}" ]]; then
+            echo "install.sh: note: sacctmgr gave no answer, so the account $name was not checked against Slurm." >&2
+            return 0
+        fi
+        while IFS= read -r line || [[ -n "$line" ]]; do
+            [[ "$line" == "$name" ]] && return 0
+        done <<<"$out"
+        echo "install.sh: the account $name is not among the Slurm accounts of user $user (sacctmgr). Pass the right one with --account NAME, or --skip-account-check to skip this lookup." >&2
+        exit 1
+    }
+
+    account_new=0
+    if [[ -n "$ACCOUNT_FLAG" ]]; then
+        SLURM_ACCOUNT="$ACCOUNT_FLAG"
+        account_new=1
+    elif [[ -z "$SLURM_ACCOUNT" || "$SLURM_ACCOUNT" == "<YOUR_ACCOUNT>" ]]; then
+        if [[ -t 0 ]]; then
+            read -r -p "Slurm account: " SLURM_ACCOUNT
+            account_new=1
+        else
+            echo 'no Slurm account: pass --account NAME or create site/local.env with SLURM_ACCOUNT="NAME"' >&2
+            exit 2
+        fi
+    fi
+    if [[ ! "$SLURM_ACCOUNT" =~ ^[A-Za-z0-9_.-]+$ ]]; then
+        echo "install.sh: the account may only contain letters, digits, '_', '.' and '-'" >&2
+        exit 2
+    fi
+    check_slurm_account "$SLURM_ACCOUNT"
+    if [[ $account_new -eq 1 ]]; then
+        set_account "$SLURM_ACCOUNT"
+    fi
+fi
+
 # 2. The CRAB checkout.
 if [[ ! -e "$CRAB_DIR/Makefile" && -e "$ROOT/.git" ]]; then
     run git -C "$ROOT" submodule update --init
@@ -209,62 +309,8 @@ else
     run "$VENV_BIN/pip" install "sbatchman[visualization]==$SBATCHMAN_VERSION"
 fi
 
-# 6. Cluster only: the Slurm account and the configs file.
+# 6. Cluster only: the configs file (the account was resolved and checked in step 1b).
 if [[ "$ROLE" == cluster ]]; then
-    LOCAL_ENV="$ROOT/site/local.env"
-    SLURM_ACCOUNT=""
-    SLURM_PARTITION=""
-    SLURM_QOS=""
-    SBATCHMAN_CLUSTER_NAME=""
-    # shellcheck source=/dev/null
-    [[ -f "$ROOT/site/leonardo.env" ]] && source "$ROOT/site/leonardo.env"
-    # shellcheck source=/dev/null
-    [[ -f "$LOCAL_ENV" ]] && source "$LOCAL_ENV"
-
-    # set_account NAME: create or replace the one SLURM_ACCOUNT line of site/local.env.
-    set_account() {
-        local name="$1" old new="" line replaced=0
-        read_file old "$LOCAL_ENV"
-        while IFS= read -r line || [[ -n "$line" ]]; do
-            if [[ "$line" == SLURM_ACCOUNT=* ]]; then
-                if [[ $replaced -eq 0 ]]; then
-                    new+="SLURM_ACCOUNT=\"$name\""$'\n'
-                    replaced=1
-                fi
-            else
-                new+="$line"$'\n'
-            fi
-        done <<<"${old%$'\n'}"
-        if [[ $replaced -eq 0 ]]; then
-            new+="SLURM_ACCOUNT=\"$name\""$'\n'
-        fi
-        # An empty file leaves one blank line from the here-string: start clean.
-        if [[ -z "$old" ]]; then
-            new="SLURM_ACCOUNT=\"$name\""$'\n'
-        fi
-        if [[ "$new" != "$old" ]]; then
-            write_file "$LOCAL_ENV" "$new"
-        fi
-        SLURM_ACCOUNT="$name"
-    }
-
-    if [[ -n "$ACCOUNT_FLAG" ]]; then
-        set_account "$ACCOUNT_FLAG"
-    fi
-    if [[ -z "$SLURM_ACCOUNT" || "$SLURM_ACCOUNT" == "<YOUR_ACCOUNT>" ]]; then
-        if [[ -t 0 ]]; then
-            read -r -p "Slurm account: " typed
-            if [[ ! "$typed" =~ ^[A-Za-z0-9_.-]+$ ]]; then
-                echo "install.sh: the account may only contain letters, digits, '_', '.' and '-'" >&2
-                exit 2
-            fi
-            set_account "$typed"
-        else
-            echo 'no Slurm account: pass --account NAME or create site/local.env with SLURM_ACCOUNT="NAME"' >&2
-            exit 2
-        fi
-    fi
-
     TEMPLATE="$ROOT/configs/leonardo.yaml"
     TARGET="$ROOT/.local/configs.leonardo.yaml"
     if [[ ! -f "$TEMPLATE" ]]; then

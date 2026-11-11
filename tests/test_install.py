@@ -189,6 +189,10 @@ def run_install(
     env.pop("SBATCHMAN_VERSION", None)
     for name in ("PIP_NO_INDEX", "PIP_FIND_LINKS", "WHEELHOUSE"):
         env.pop(name, None)
+    # A real sacctmgr on this machine must never answer for a test: only a stub from path_prefix.
+    env["PATH"] = os.pathsep.join(
+        d for d in env["PATH"].split(os.pathsep) if not os.access(Path(d) / "sacctmgr", os.X_OK)
+    )
     if path_prefix is not None:
         env["PATH"] = f"{path_prefix}{os.pathsep}{env['PATH']}"
     env.update(env_extra or {})
@@ -320,6 +324,12 @@ def test_no_account_and_no_terminal_exits_2(tmp_path):
     assert result.returncode == 2
     assert "--account" in result.stderr
     assert not (root / "site" / "local.env").exists()
+    # The question comes first: nothing slow ran and nothing was created.
+    assert not (tmp_path / "pip.log").exists()
+    assert not (tmp_path / "make-env.log").exists()
+    assert not (root / "CRAB" / ".venv").exists()
+    assert not (root / "CRAB" / "wrappers").is_symlink()
+    assert not (tmp_path / "sacctmgr.log").exists()
 
 
 def test_local_env_is_used_and_account_flag_replaces_one_line(tmp_path):
@@ -723,9 +733,18 @@ def test_usage_lists_only_the_kept_flags(tmp_path):
     assert result.returncode == 0
     for gone in ("--no-setup", "--login-host", "--user", "--remote-dir", "wizard", "SITE_"):
         assert gone not in result.stdout, gone
-    for kept in ("--role", "--account", "--no-check", "--full-check", "--dry-run", "--offline"):
+    for kept in (
+        "--role",
+        "--account",
+        "--skip-account-check",
+        "--no-check",
+        "--full-check",
+        "--dry-run",
+        "--offline",
+    ):
         assert kept in result.stdout, kept
     assert "[--offline]" in result.stdout.split("\n\n")[0]
+    assert "[--skip-account-check]" in result.stdout.split("\n\n")[0]
     assert "WHEELHOUSE" in result.stdout
     assert ".wheelhouse" in result.stdout
 
@@ -956,3 +975,209 @@ def test_dry_run_offline_prints_the_environment_and_writes_nothing(tmp_path):
     assert listing(root) == before
     assert not (tmp_path / "pip.log").exists()
     assert not (tmp_path / "make-env.log").exists()
+
+
+# ---- the Slurm account: resolved and checked before any slow step ----
+
+STUB_SACCTMGR = """\
+#!/bin/sh
+echo "$*" >> "@LOG@/sacctmgr.log"
+@BODY@
+"""
+
+
+def sacctmgr_stub(tmp_path: Path, lines: list[str] | None = None, exit_code: int = 0) -> Path:
+    """A directory holding a stub sacctmgr for path_prefix: it logs its arguments to
+    tmp_path/sacctmgr.log, prints the lines (one per line) and exits with exit_code."""
+    body = "".join(f"echo '{line}'\n" for line in lines or []) + f"exit {exit_code}"
+    stubs = tmp_path / "slurmbin"
+    _write(
+        stubs / "sacctmgr",
+        STUB_SACCTMGR.replace("@LOG@", str(tmp_path)).replace("@BODY@", body),
+        executable=True,
+    )
+    return stubs
+
+
+def sacctmgr_calls(tmp_path: Path) -> list[str]:
+    log = tmp_path / "sacctmgr.log"
+    return log.read_text().splitlines() if log.exists() else []
+
+
+def assert_nothing_slow_ran(tmp_path: Path, root: Path) -> None:
+    assert not (tmp_path / "pip.log").exists()
+    assert not (tmp_path / "make-env.log").exists()
+    assert not (root / "CRAB" / ".venv").exists()
+    assert not (root / "CRAB" / "wrappers").is_symlink()
+    assert not (root / ".local").exists()
+    assert not (root / "env.sh").exists()
+
+
+def test_an_account_not_among_the_slurm_associations_stops_before_any_slow_step(tmp_path):
+    root = make_umbrella(tmp_path)
+    # Whole-line, case-sensitive match: neither a longer name, a prefix nor another case counts.
+    stubs = sacctmgr_stub(tmp_path, ["proj2", "xproj", "PROJ", "other"])
+    before = listing(root)
+    result = run_install(
+        root, "--account", "proj", path_prefix=stubs, env_extra={"USER": "alice"}
+    )
+    assert result.returncode == 1
+    error = result.stderr.strip().splitlines()
+    assert len(error) == 1, result.stderr
+    assert "proj" in error[0] and "--skip-account-check" in error[0] and "alice" in error[0]
+    assert sacctmgr_calls(tmp_path) == ["-n -P show assoc user=alice format=account"]
+    assert_nothing_slow_ran(tmp_path, root)
+    assert not (root / "site" / "local.env").exists()
+    assert listing(root) == before
+    assert "+ " not in result.stdout
+
+
+def test_an_account_among_the_slurm_associations_installs_as_before(tmp_path):
+    root = make_umbrella(tmp_path)
+    stubs = sacctmgr_stub(tmp_path, ["proj2", "proj", "other"])
+    result = run_install(root, "--account", "proj", path_prefix=stubs)
+    assert result.returncode == 0, result.stderr
+    assert len(sacctmgr_calls(tmp_path)) == 1
+    assert "note:" not in result.stderr
+    assert 'SLURM_ACCOUNT="proj"' in (root / "site" / "local.env").read_text()
+    assert "account: proj\n" in (root / ".local" / "configs.leonardo.yaml").read_text()
+    assert "sbatchman==2.0.4" in (tmp_path / "pip.log").read_text()
+    assert "install.sh finished: role cluster" in result.stdout
+
+
+def test_the_account_from_site_local_env_is_checked_too(tmp_path):
+    root = make_umbrella(tmp_path)
+    _write(root / "site" / "local.env", 'SLURM_ACCOUNT="FROMFILE"\n')
+    stubs = sacctmgr_stub(tmp_path, ["other"])
+    result = run_install(root, path_prefix=stubs)
+    assert result.returncode == 1
+    assert "FROMFILE" in result.stderr
+    assert_nothing_slow_ran(tmp_path, root)
+    stubs = sacctmgr_stub(tmp_path, ["FROMFILE"])
+    again = run_install(root, path_prefix=stubs)
+    assert again.returncode == 0, again.stderr
+
+
+def test_the_user_falls_back_to_id_when_user_is_unset(tmp_path):
+    root = make_umbrella(tmp_path)
+    stubs = sacctmgr_stub(tmp_path, ["proj"])
+    expected = subprocess.run(["id", "-un"], capture_output=True, text=True).stdout.strip()
+    result = run_install(
+        root, "--account", "proj", "--dry-run", path_prefix=stubs, env_extra={"USER": ""}
+    )
+    assert result.returncode == 0, result.stderr
+    assert sacctmgr_calls(tmp_path) == [f"-n -P show assoc user={expected} format=account"]
+
+
+def test_without_sacctmgr_one_note_and_the_install_goes_on(tmp_path):
+    root = make_umbrella(tmp_path)
+    result = run_install(root, "--account", "TESTACCT")
+    assert result.returncode == 0, result.stderr
+    notes = [ln for ln in result.stderr.splitlines() if "note:" in ln]
+    assert len(notes) == 1, result.stderr
+    assert "TESTACCT" in notes[0] and "not checked against Slurm" in notes[0]
+    assert "sbatchman==2.0.4" in (tmp_path / "pip.log").read_text()
+
+
+@pytest.mark.parametrize(
+    ("lines", "exit_code"),
+    [(["TESTACCT"], 1), ([], 0), ([], 1)],
+    ids=["fails-with-output", "empty-output", "fails-without-output"],
+)
+def test_a_sacctmgr_that_cannot_answer_gives_a_note_not_a_failure(tmp_path, lines, exit_code):
+    root = make_umbrella(tmp_path)
+    stubs = sacctmgr_stub(tmp_path, lines, exit_code)
+    result = run_install(root, "--account", "TESTACCT", path_prefix=stubs)
+    assert result.returncode == 0, result.stderr
+    assert len(sacctmgr_calls(tmp_path)) == 1
+    notes = [ln for ln in result.stderr.splitlines() if "note:" in ln]
+    assert len(notes) == 1, result.stderr
+    assert "not checked against Slurm" in notes[0]
+    assert "sbatchman==2.0.4" in (tmp_path / "pip.log").read_text()
+
+
+def test_skip_account_check_never_runs_sacctmgr_and_says_so(tmp_path):
+    root = make_umbrella(tmp_path)
+    stubs = sacctmgr_stub(tmp_path, ["other"])  # would reject TESTACCT
+    result = run_install(
+        root, "--account", "TESTACCT", "--skip-account-check", path_prefix=stubs
+    )
+    assert result.returncode == 0, result.stderr
+    assert not (tmp_path / "sacctmgr.log").exists()
+    said = [
+        ln for ln in (result.stdout + result.stderr).splitlines() if "--skip-account-check" in ln
+    ]
+    assert len(said) == 1 and "not checked against Slurm" in said[0], said
+    assert "sbatchman==2.0.4" in (tmp_path / "pip.log").read_text()
+
+
+def test_skip_account_check_keeps_the_regex_check(tmp_path):
+    root = make_umbrella(tmp_path)
+    result = run_install(root, "--account", "bad name", "--skip-account-check")
+    assert result.returncode == 2
+    assert "letters, digits" in result.stderr
+
+
+def test_a_malformed_account_fails_before_sacctmgr_is_called(tmp_path):
+    root = make_umbrella(tmp_path)
+    stubs = sacctmgr_stub(tmp_path, ["bad name", "a;b"])
+    before = listing(root)
+    result = run_install(root, "--account", "a;b", path_prefix=stubs)
+    assert result.returncode == 2
+    assert "letters, digits" in result.stderr
+    assert not (tmp_path / "sacctmgr.log").exists()
+    assert listing(root) == before
+    # The same rule for an account that comes from a site file.
+    _write(root / "site" / "local.env", 'SLURM_ACCOUNT="a;b"\n')
+    from_file = run_install(root, path_prefix=stubs)
+    assert from_file.returncode == 2
+    assert "letters, digits" in from_file.stderr
+    assert not (tmp_path / "sacctmgr.log").exists()
+    assert_nothing_slow_ran(tmp_path, root)
+
+
+def test_the_prompt_path_fails_early_with_the_same_message_and_no_sacctmgr_call(tmp_path):
+    root = make_umbrella(tmp_path)
+    stubs = sacctmgr_stub(tmp_path, ["TESTACCT"])
+    before = listing(root)
+    result = run_install(root, path_prefix=stubs)
+    assert result.returncode == 2
+    assert result.stderr.strip() == (
+        'no Slurm account: pass --account NAME or create site/local.env with SLURM_ACCOUNT="NAME"'
+    )
+    assert not (tmp_path / "sacctmgr.log").exists()
+    assert_nothing_slow_ran(tmp_path, root)
+    assert listing(root) == before
+
+
+def test_dry_run_checks_the_account_and_writes_nothing(tmp_path):
+    root = make_umbrella(tmp_path)
+    before = listing(root)
+    rejecting = sacctmgr_stub(tmp_path, ["other"])
+    result = run_install(root, "--dry-run", "--account", "proj", path_prefix=rejecting)
+    assert result.returncode == 1
+    assert "proj" in result.stderr and "--skip-account-check" in result.stderr
+    assert len(sacctmgr_calls(tmp_path)) == 1
+    assert listing(root) == before
+    assert "+ " not in result.stdout
+    (tmp_path / "sacctmgr.log").unlink()
+    accepting = sacctmgr_stub(tmp_path, ["proj"])
+    result = run_install(root, "--dry-run", "--account", "proj", path_prefix=accepting)
+    assert result.returncode == 0, result.stderr
+    assert len(sacctmgr_calls(tmp_path)) == 1
+    assert "+ write " + str(root / "site" / "local.env") in result.stdout
+    assert listing(root) == before
+    assert not (tmp_path / "pip.log").exists()
+
+
+def test_the_laptop_role_never_asks_slurm_and_needs_no_account(tmp_path):
+    root = make_umbrella(tmp_path)
+    stubs = sacctmgr_stub(tmp_path, ["other"])
+    result = run_install(root, "--role", "laptop", path_prefix=stubs)
+    assert result.returncode == 0, result.stderr
+    assert not (tmp_path / "sacctmgr.log").exists()
+    assert "note:" not in result.stderr
+    assert not (root / "site" / "local.env").exists()
+    skipped = run_install(root, "--role", "laptop", "--skip-account-check", path_prefix=stubs)
+    assert skipped.returncode == 0, skipped.stderr
+    assert not (tmp_path / "sacctmgr.log").exists()
