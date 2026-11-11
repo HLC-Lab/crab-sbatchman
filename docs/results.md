@@ -24,7 +24,7 @@ Run these steps on your laptop, installed as in [Install](install.md#install-on-
    local = "<laptop-dir>/benchmarks/<benchmark>/SbatchMan"
    ```
 
-   Replace `<login-host>` and `<your-user>` with the address and username you ssh with. Replace `<umbrella-dir>` with the absolute path of the umbrella folder on the cluster, and `<laptop-dir>` with the one on your laptop. Add one `[[clusters.fetch_dirs]]` block for each benchmark, such as `blink` or `qe`.
+   Replace `<login-host>` and `<your-user>` with the address and username you ssh with. Replace `<umbrella-dir>` with the absolute path of the umbrella folder on the cluster, and `<laptop-dir>` with the one on your laptop. Add one `[[clusters.fetch_dirs]]` block for each benchmark.
 
 2. Copy the results. Run this in a shell where you ran `source env.sh`, and run it again after new jobs finish.
 
@@ -45,12 +45,10 @@ The port is fixed. `crab web` serves on 8899 after `source env.sh`, so you can r
 
 ## What you see
 
-The `plots.json` of Blink holds two starter plots, and so does the one of Quantum ESPRESSO:
+The `plots.json` of Blink holds two starter plots:
 
 - Blink, "Baseline vs noise": the average duration in ms per message size, for baseline and noise.
 - Blink, "Per repetition": the same average for each repetition.
-- Quantum ESPRESSO, "Wall time per run": the wall time of each run, one line per state and job tag.
-- Quantum ESPRESSO, "Average wall time": the average wall time per job tag, baseline against noise.
 
 Each app has one table: `app_0` for the first app, `app_1` for the second, and so on. Its columns are:
 

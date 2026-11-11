@@ -25,11 +25,37 @@ module load python
 no Slurm account: pass --account NAME or create site/local.env with SLURM_ACCOUNT="NAME"
 ```
 
-The installer found no account and has no terminal to ask on. Pass it (the installer saves it in `site/local.env`):
+The installer found no account and has no terminal to ask on. Pass it (the installer checks it first and saves it in `site/local.env`):
 
 ```bash
 ./install.sh --account <YOUR_ACCOUNT>
 ```
+
+### "the account ... is not among the Slurm accounts"
+
+```text
+install.sh: the account <YOUR_ACCOUNT> is not among the Slurm accounts of user <your-user> (sacctmgr). Pass the right one with --account NAME, or --skip-account-check to skip this lookup.
+```
+
+`sacctmgr` answered, and the name you gave is not one of your Slurm accounts. The installer stops before it installs anything. Run it again with an account you have:
+
+```bash
+./install.sh --account <YOUR_ACCOUNT>
+```
+
+If your site lists accounts in another way, skip the lookup:
+
+```bash
+./install.sh --account <YOUR_ACCOUNT> --skip-account-check
+```
+
+### "the account ... was not checked against Slurm"
+
+```text
+install.sh: note: sacctmgr is not on PATH, so the account <YOUR_ACCOUNT> was not checked against Slurm.
+```
+
+This is a note, not an error: the install goes on. It also prints with the words `sacctmgr gave no answer` (the accounting service did not reply) or `(--skip-account-check)` (you asked to skip the lookup). A wrong account then shows up at launch, as in [Launch](#failed-to-submit-job-job-submission-failed-with-error-code-1).
 
 ### The installer rejects the account name
 
@@ -150,7 +176,7 @@ git submodule update --init
 FAIL jobs file benchmarks/blink/smoke.yaml: it has no 'jobs' list
 ```
 
-The line names the jobs file and the reason: the file is not valid YAML, a job has no config, a config has an unfilled variable or is not valid JSON, or `crab validate` rejects it (its message follows `crab validate:`). Fix the file named on the line, then run the installer again.
+The check covers the first and the last combination of the variables of each jobs file. Run `./install.sh --full-check` to check every combination. The line names the jobs file and the reason: the file is not valid YAML, a job has no config, a config has an unfilled variable or is not valid JSON, or `crab validate` rejects it (its message follows `crab validate:`). Fix the file named on the line, then run the installer again.
 
 ### "FAIL sbatchman launch --dry-run"
 

@@ -15,7 +15,7 @@ module load python
 source env.sh
 ```
 
-[Install](docs/install.md#install-on-the-cluster) explains each placeholder. The installer saves the account, so later runs need no `--account`.
+[Install](docs/install.md#install-on-the-cluster) explains each placeholder. The installer checks the account first, with `sacctmgr` when it is on `PATH` (`--skip-account-check` skips the lookup). It saves the account, so later runs need no `--account`.
 Run `source env.sh` in every new shell. A pass of the final self-check prints `install.sh: all checks passed`.
 If a check fails, see [Troubleshooting](docs/troubleshooting.md).
 

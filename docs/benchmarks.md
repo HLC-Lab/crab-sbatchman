@@ -4,7 +4,7 @@ Register a benchmark so that jobs find its binary through a receipt. A receipt i
 
 ## Register a supported benchmark
 
-Use this for Blink, Quantum ESPRESSO, or any other benchmark that `crab setup` offers.
+Use this for Blink, or any other benchmark that `crab setup` offers.
 
 ```bash
 crab setup

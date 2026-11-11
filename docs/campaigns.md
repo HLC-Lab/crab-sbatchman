@@ -9,7 +9,7 @@ A campaign is a jobs file that SbatchMan launches. Write one by hand, or in the 
 
 ## Add your config
 
-The jobs file names a SbatchMan config, which holds the modules and the GPUs of its jobs. Skip this section if `crab_run_{nodes}` (CPU) or `crab_qe_{nodes}` (4 GPUs per node) fits your application.
+The jobs file names a SbatchMan config, which holds the modules and the GPUs of its jobs. Skip this section if `crab_run_{nodes}` (CPU) fits your application.
 
 1. Add a block under `configs:` in `configs/leonardo.yaml`. Edit the template, never the filled copy in `.local/`.
 

@@ -5,14 +5,15 @@ Look up the options of `install.sh`, what `env.sh` sets, the files of the repo a
 ## `install.sh`
 
 ```bash
-./install.sh [--role cluster|laptop] [--account NAME] [--no-check] [--full-check] [--dry-run] [--offline] [-h|--help]
+./install.sh [--role cluster|laptop] [--account NAME] [--skip-account-check] [--no-check] [--full-check] [--dry-run] [--offline] [-h|--help]
 ```
 
 | Flag | Meaning |
 |---|---|
 | `--role ROLE` | `cluster` (default): CRAB, SbatchMan and the configs file. `laptop`: CRAB with the web dashboard and SbatchMan with its plots. |
-| `--account NAME` | Slurm account to charge, saved in `site/local.env` (cluster role). Letters, digits, `_`, `.` and `-`. |
-| `--no-check` | Skip the self-check at the end. |
+| `--account NAME` | Slurm account to charge, saved in `site/local.env` (cluster role). Letters, digits, `_`, `.` and `-`. The installer resolves and checks it first: with `sacctmgr` on `PATH`, a name that is not one of your Slurm accounts stops the run before anything is installed. |
+| `--skip-account-check` | Do not look the account up with `sacctmgr`. The name is still checked for allowed characters. |
+| `--no-check` | Skip the self-check at the end. The check prints one `OK` or `FAIL` line per item and submits no Slurm job. |
 | `--full-check` | In the self-check, run `crab validate` on every variable combination of each jobs file. Without it the check runs the first and the last combination only. |
 | `--dry-run` | Print every command and file write, run and write nothing. |
 | `--offline` | Use no network: every `pip` call reads wheels only from the folder in the environment variable `WHEELHOUSE` (default `.wheelhouse` in the umbrella folder). The installer stops if that folder is missing. Fill it with `pip download`. |
@@ -23,7 +24,7 @@ The environment variable `SBATCHMAN_VERSION` sets the SbatchMan version to insta
 | Exit code | Meaning |
 |---|---|
 | 0 | Done, and every check passed or was skipped. |
-| 1 | An environment problem (Python older than 3.10, CRAB or the template missing, an unfilled token) or a failed check. |
+| 1 | An environment problem (Python older than 3.10, CRAB or the template missing, an unfilled token), an account that `sacctmgr` does not list for you, or a failed check. |
 | 2 | A bad argument, a bad value, or no Slurm account. |
 
 ## Environment
