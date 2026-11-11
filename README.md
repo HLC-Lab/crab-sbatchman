@@ -256,8 +256,8 @@ was not tested: save what you want to keep by editing the file.
 ## install.sh reference
 
 ```
-./install.sh [--role cluster|laptop] [--account NAME] [--no-setup] [--dry-run]
-             [--login-host HOST] [--user NAME] [--remote-dir PATH] [-h|--help]
+./install.sh [--role cluster|laptop] [--account NAME] [--no-setup] [--no-check]
+             [--dry-run] [--login-host HOST] [--user NAME] [--remote-dir PATH] [-h|--help]
 ```
 
 | Flag | Meaning |
@@ -265,6 +265,7 @@ was not tested: save what you want to keep by editing the file.
 | `--role ROLE` | `cluster` (default): CRAB, SbatchMan, the configs file, the setup wizard. `laptop`: CRAB with the web dashboard, SbatchMan with plots. |
 | `--account NAME` | Slurm account to charge, saved in `site/local.env` (cluster role). Letters, digits, `_`, `.`, `-`. Without it, and without `site/local.env`, the installer asks (on a terminal) or exits with `no Slurm account`. |
 | `--no-setup` | Skip the interactive `crab setup` wizard at the end (cluster role). |
+| `--no-check` | Skip the self-check at the end. The check prints one `OK` or `FAIL` line per item, then a summary, and exits 1 if any item failed. It submits no Slurm job. |
 | `--dry-run` | Print every command and file write, run and write nothing. |
 | `--login-host HOST` | Laptop only: the cluster's login host, for the help block. |
 | `--user NAME` | Laptop only: your user on the cluster, for the help block. |

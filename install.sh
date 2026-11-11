@@ -9,13 +9,18 @@ SBATCHMAN_VERSION="${SBATCHMAN_VERSION:-2.0.4}"
 
 usage() {
     cat <<'EOF'
-Usage: ./install.sh [--role cluster|laptop] [--account NAME] [--no-setup] [--dry-run]
-                    [--login-host HOST] [--user NAME] [--remote-dir PATH] [-h|--help]
+Usage: ./install.sh [--role cluster|laptop] [--account NAME] [--no-setup] [--no-check]
+                    [--dry-run] [--login-host HOST] [--user NAME] [--remote-dir PATH] [-h|--help]
 
   --role ROLE      cluster (default): CRAB, SbatchMan, the configs file, the setup wizard.
                    laptop: CRAB with the web dashboard and SbatchMan with its plots.
   --account NAME   Slurm account to charge; saved in site/local.env (cluster role).
   --no-setup       skip the interactive 'crab setup' wizard at the end.
+  --no-check       skip the self-check at the end. The check prints one OK or FAIL line per
+                   item (tool versions, commands in the venv, wrappers, every jobs file
+                   through 'crab validate' and, for the cluster role, a dry-run launch of
+                   the smoke file), then a summary, and exits 1 if any item failed. It
+                   submits no Slurm job.
   --dry-run        print every command and file write, run and write nothing.
   --login-host HOST, --user NAME, --remote-dir PATH
                    laptop only: the cluster's login host, your user there and the umbrella's
@@ -28,6 +33,7 @@ EOF
 ROLE=cluster
 ACCOUNT_FLAG=""
 NO_SETUP=0
+NO_CHECK=0
 DRY_RUN=0
 LOGIN_HOST_FLAG=""
 USER_FLAG=""
@@ -47,6 +53,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --no-setup)
             NO_SETUP=1
+            shift
+            ;;
+        --no-check)
+            NO_CHECK=1
             shift
             ;;
         --dry-run)
@@ -325,6 +335,194 @@ if [[ "$ROLE" == cluster && $NO_SETUP -eq 0 ]]; then
     run "$VENV_BIN/crab" setup
 fi
 
+# 8b. The self-check: one OK or FAIL line per check, a summary, exit status 1 if any failed.
+# It submits no job: the launch check is a dry run. A failed check does not stop the later ones.
+CHECKS_FAILED=0
+SMOKE_FILE="smoke.yaml"
+SMOKE_DIR="$ROOT/benchmarks/blink"
+
+check_ok() {
+    printf 'OK %s\n' "$1"
+}
+
+check_fail() {
+    printf 'FAIL %s: %s\n' "$1" "$2"
+    CHECKS_FAILED=$((CHECKS_FAILED + 1))
+}
+
+# one_line TEXT: the text on one line, cut at 300 characters ("(no output)" when empty).
+one_line() {
+    local text="${1//$'\n'/ }"
+    [[ -n "${text// /}" ]] || text="(no output)"
+    printf '%s' "${text:0:300}"
+}
+
+# Reads a jobs file and writes one JSON file per config.json it would create (every value of
+# its variables, the heredoc of each job), the same way tests/test_benchmarks.py does. Prints
+# the paths; any problem goes to stderr with exit status 1.
+IFS= read -r -d '' EXTRACT_PY <<'PY' || true
+import itertools
+import json
+import re
+import sys
+from pathlib import Path
+
+import yaml
+
+path, outdir, crab_dir = Path(sys.argv[1]), Path(sys.argv[2]), sys.argv[3]
+try:
+    doc = yaml.safe_load(path.read_text())
+except (OSError, yaml.YAMLError) as error:
+    sys.exit(f"cannot read it as YAML: {error}")
+if not isinstance(doc, dict) or not isinstance(doc.get("jobs"), list) or not doc["jobs"]:
+    sys.exit("it has no 'jobs' list")
+variables = doc.get("variables") or {}
+names = list(variables)
+heredoc = re.compile(r"<<'?JSON'?\n(.*?)\nJSON\n", re.DOTALL)
+count = 0
+for job in doc["jobs"]:
+    preprocess = job.get("preprocess", "") if isinstance(job, dict) else ""
+    match = heredoc.search(str(preprocess))
+    if not match:
+        sys.exit("a job has no config.json heredoc (<<JSON ... JSON) in its preprocess")
+    for values in itertools.product(*(variables[name] for name in names)):
+        text = match.group(1)
+        for name, value in zip(names, values):
+            text = text.replace("{" + name + "}", str(value))
+        text = text.replace("$SBATCHMAN_WD", str(path.parent)).replace("$CRAB_ROOT", crab_dir)
+        left = re.findall(r"\{[a-z_]+\}", text)
+        if left:
+            sys.exit(f"the embedded config still has the unfilled variable {left[0]}")
+        try:
+            json.loads(text)
+        except ValueError as error:
+            sys.exit(f"the embedded config is not valid JSON: {error}")
+        count += 1
+        out = outdir / f"{path.stem}-{count}.json"
+        out.write_text(text + "\n")
+        print(out)
+PY
+
+# check_jobs_file FILE OUTDIR: every config of the jobs file passes `crab validate`.
+check_jobs_file() {
+    local file="$1" outdir="$2" rel out json count=0
+    rel="${file#"$ROOT"/}"
+    mkdir -p "$outdir"
+    if ! out="$("$VENV_BIN/python" -c "$EXTRACT_PY" "$file" "$outdir" "$CRAB_DIR" 2>&1)"; then
+        check_fail "jobs file $rel" "$(one_line "$out")"
+        return 0
+    fi
+    while IFS= read -r json; do
+        [[ -f "$json" ]] || continue
+        count=$((count + 1))
+        if ! out="$(CRAB_PATH_WRAPPERS="$ROOT/crab-wrappers" CRAB_ROOT="$CRAB_DIR" "$VENV_BIN/crab" validate "$json" 2>&1)"; then
+            check_fail "jobs file $rel" "crab validate: $(one_line "$out")"
+            return 0
+        fi
+    done <<<"$out"
+    if [[ $count -eq 0 ]]; then
+        check_fail "jobs file $rel" "no config to validate"
+        return 0
+    fi
+    check_ok "jobs file $rel passes crab validate ($count config(s))"
+}
+
+check_install() {
+    local file rel out found resolved tool problem dir workdir n=0
+    echo
+    if [[ $DRY_RUN -eq 1 ]]; then
+        echo "would check: python 3.10 or newer in the venv"
+        echo "would check: sbatchman $SBATCHMAN_VERSION installed in the venv"
+        echo "would check: crab resolves inside CRAB/.venv/bin"
+        echo "would check: sbatchman resolves inside CRAB/.venv/bin"
+        echo "would check: the wrappers folders are not empty"
+        for file in "$ROOT"/benchmarks/*/*.yaml; do
+            [[ -f "$file" ]] || continue
+            echo "would check: jobs file ${file#"$ROOT"/} passes crab validate"
+        done
+        if [[ "$ROLE" == cluster ]]; then
+            echo "would check: sbatchman launch --dry-run on benchmarks/blink/$SMOKE_FILE (submits nothing)"
+        fi
+        return 0
+    fi
+    echo "Checking the install (no Slurm job is submitted):"
+
+    # a. Python and SbatchMan in the venv.
+    if "$VENV_BIN/python" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)' >/dev/null 2>&1; then
+        check_ok "python 3.10 or newer in the venv"
+    else
+        found="$("$VENV_BIN/python" --version 2>&1 || true)"
+        check_fail "python in the venv" "CRAB/.venv/bin/python needs 3.10 or newer, found: $(one_line "$found")"
+    fi
+    if out="$("$VENV_BIN/pip" show sbatchman 2>&1)"; then
+        found="$(printf '%s\n' "$out" | sed -n 's/^Version: *//p' | head -n 1)"
+        if [[ "$found" == "$SBATCHMAN_VERSION" ]]; then
+            check_ok "sbatchman $SBATCHMAN_VERSION installed in the venv"
+        else
+            check_fail "sbatchman version" "found ${found:-none}, expected $SBATCHMAN_VERSION"
+        fi
+    else
+        check_fail "sbatchman version" "pip show sbatchman failed: $(one_line "$out")"
+    fi
+
+    # b. The two commands resolve inside the venv once env.sh has put it first on PATH.
+    for tool in crab sbatchman; do
+        resolved="$(PATH="$VENV_BIN:$PATH" command -v "$tool" || true)"
+        if [[ "$resolved" == "$VENV_BIN/$tool" ]]; then
+            check_ok "$tool resolves inside CRAB/.venv/bin"
+        else
+            found="${resolved#"$ROOT"/}"
+            check_fail "$tool in the venv" "it resolves to ${found:-nothing}, not CRAB/.venv/bin/$tool"
+        fi
+    done
+
+    # c. The wrappers: the folder env.sh exports and the link the jobs use.
+    problem=""
+    for dir in "$ROOT/crab-wrappers" "$CRAB_DIR/wrappers"; do
+        if [[ ! -d "$dir" ]]; then
+            problem="${dir#"$ROOT"/} is not a folder (run: git submodule update --init)"
+        elif ! compgen -G "$dir/*" >/dev/null; then
+            problem="${dir#"$ROOT"/} is empty (run: git submodule update --init)"
+        fi
+        [[ -z "$problem" ]] || break
+    done
+    if [[ -z "$problem" ]]; then
+        check_ok "wrappers folders are not empty"
+    else
+        check_fail "wrappers folder" "$problem"
+    fi
+
+    # d. Every shipped jobs file: its embedded configs pass `crab validate`.
+    workdir="$(mktemp -d)"
+    for file in "$ROOT"/benchmarks/*/*.yaml; do
+        [[ -f "$file" ]] || continue
+        n=$((n + 1))
+        check_jobs_file "$file" "$workdir/$n"
+    done
+    rm -rf "$workdir"
+
+    # e. Cluster only: SbatchMan reads the smoke file and lists its jobs; nothing is submitted.
+    if [[ "$ROLE" == cluster ]]; then
+        if [[ ! -f "$SMOKE_DIR/$SMOKE_FILE" ]]; then
+            check_fail "sbatchman launch --dry-run" "benchmarks/blink/$SMOKE_FILE is missing"
+        elif out="$(cd "$SMOKE_DIR" && PATH="$VENV_BIN:$PATH" SBATCHMAN_CLUSTER_NAME="$cluster_name" CRAB_PATH_WRAPPERS="$ROOT/crab-wrappers" "$VENV_BIN/sbatchman" launch -f "$SMOKE_FILE" --dry-run 2>&1)"; then
+            check_ok "sbatchman launch --dry-run on benchmarks/blink/$SMOKE_FILE (submits nothing)"
+        else
+            check_fail "sbatchman launch --dry-run on benchmarks/blink/$SMOKE_FILE" "$(one_line "$out")"
+        fi
+    fi
+
+    if [[ $CHECKS_FAILED -eq 0 ]]; then
+        echo "install.sh: all checks passed"
+    else
+        echo "install.sh: $CHECKS_FAILED check(s) failed"
+    fi
+}
+
+if [[ $NO_CHECK -eq 0 ]]; then
+    check_install
+fi
+
 if [[ $DRY_RUN -eq 1 ]]; then
     echo "install.sh finished: role $ROLE (dry run, nothing was changed)"
 else
@@ -425,3 +623,6 @@ crab web          # dashboard, http://127.0.0.1:8899
 cd benchmarks/${benchmark_names[0]:-<benchmark>} && sbatchman fetch && sbatchman visualize   # plots, http://127.0.0.1:8765
 EOF
 fi
+
+# The self-check's verdict: a failed check makes the whole run exit 1.
+[[ $CHECKS_FAILED -eq 0 ]] || exit 1
