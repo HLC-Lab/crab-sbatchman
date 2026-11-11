@@ -22,24 +22,14 @@ TEMPLATE = REPO / "configs" / "leonardo.yaml"
 
 JOBS_FILES = {
     "blink": ["smoke.yaml", "blink-noise.yaml", "a2a-vs-a2a.yaml", "a2a-vs-incast.yaml"],
-    "qe": ["qe-alone.yaml", "qe-noise.yaml"],
 }
 JOBS_PATHS = [BENCHMARKS / folder / name for folder, names in JOBS_FILES.items() for name in names]
-QE_PATHS = [BENCHMARKS / "qe" / name for name in JOBS_FILES["qe"]]
-READMES = [
-    BENCHMARKS / "blink" / "README.md",
-    BENCHMARKS / "qe" / "README.md",
-    BENCHMARKS / "qe" / "qe" / "README.md",
-]
-QE_INPUTS = [
-    BENCHMARKS / "qe" / "qe" / "si-scf.in",
-    BENCHMARKS / "qe" / "qe" / "Si.pz-vbc.UPF",
-]
+READMES = [BENCHMARKS / "blink" / "README.md"]
 
 CONFIGS_PATH = "../../.local/configs.leonardo.yaml"
 TOKENS = {"<YOUR_ACCOUNT>", "<SLURM_PARTITION>", "<SLURM_QOS>", "<CRAB_DIR>"}
-# A quoted heredoc (<<'JSON') keeps the text as it is; the QE files use an unquoted one (<<JSON)
-# so the shell expands $SBATCHMAN_WD in the input paths.
+# A quoted heredoc (<<'JSON') keeps the text as it is; an unquoted one (<<JSON) lets the shell
+# expand $SBATCHMAN_WD in the paths.
 HEREDOC = re.compile(r"<<'?JSON'?\n(.*?)\nJSON\n", re.DOTALL)
 
 
@@ -97,7 +87,7 @@ def pinned_crab() -> Any:
 
 
 def test_the_expected_files_exist() -> None:
-    for path in [TEMPLATE, *JOBS_PATHS, *READMES, *QE_INPUTS]:
+    for path in [TEMPLATE, *JOBS_PATHS, *READMES]:
         assert path.is_file(), path
 
 
@@ -134,7 +124,7 @@ def test_the_template_has_exactly_the_four_tokens() -> None:
     assert set(re.findall(r"<[A-Z_]+>", text)) == TOKENS
 
 
-def test_the_filled_template_is_the_leonardo_cluster_with_both_config_names() -> None:
+def test_the_filled_template_is_the_leonardo_cluster_with_the_cpu_config() -> None:
     doc = yaml.safe_load(_fill(TEMPLATE.read_text()))
 
     assert not re.search(r"<[A-Z_]+>", _fill(TEMPLATE.read_text()))
@@ -143,7 +133,7 @@ def test_the_filled_template_is_the_leonardo_cluster_with_both_config_names() ->
     assert doc["leonardo"]["default_conf"]["partition"] == "testpart"
     assert doc["leonardo"]["default_conf"]["qos"] == "testqos"
     names = [config["name"] for config in doc["leonardo"]["configs"]]
-    assert names == ["crab_run_{nodes}", "crab_qe_{nodes}"]
+    assert names == ["crab_run_{nodes}"]
     env = doc["leonardo"]["default_conf"]["env"]
     assert "CRAB_ROOT=/opt/umbrella/CRAB" in env
     assert "CRAB_PATH_WRAPPERS=/opt/umbrella/CRAB/wrappers" in env
@@ -157,19 +147,6 @@ def test_the_filled_template_is_the_leonardo_cluster_with_both_config_names() ->
             assert values["nodes"] in doc["variables"]["nodes"], path.name
 
 
-@pytest.mark.parametrize("path", QE_PATHS, ids=lambda p: p.name)
-def test_the_qe_files_read_input_and_pseudos_from_this_folder(path: Path) -> None:
-    job = _load(path)["jobs"][0]
-    text = path.read_text()
-
-    # The heredoc is unquoted so the shell expands $SBATCHMAN_WD: no other `$` or backtick may be in it.
-    assert "<<JSON\n" in job["preprocess"]
-    assert "<<'JSON'" not in job["preprocess"]
-    assert "$CRAB_ROOT/examples" not in text
-    assert "$SBATCHMAN_WD/qe/si-scf.in" in _heredoc(job)
-    assert not re.search(r"[$`]", _heredoc(job).replace("$SBATCHMAN_WD", ""))
-
-
 @pytest.mark.parametrize("path", JOBS_PATHS, ids=lambda p: p.name)
 def test_every_embedded_config_passes_crab_validation(
     path: Path, pinned_crab: Any, monkeypatch: pytest.MonkeyPatch
@@ -179,14 +156,15 @@ def test_every_embedded_config_passes_crab_validation(
     monkeypatch.setenv("CRAB_ROOT", str(REPO / "CRAB"))
     doc = _load(path)
     job = doc["jobs"][0]
-    qe_dir = BENCHMARKS / "qe"
     checked = 0
 
     for values in _combinations(doc):
         text = _heredoc(job)
         for name, value in values.items():
             text = text.replace("{" + name + "}", str(value))
-        text = text.replace("$SBATCHMAN_WD", str(qe_dir)).replace("$CRAB_ROOT", str(REPO / "CRAB"))
+        text = text.replace("$SBATCHMAN_WD", str(path.parent)).replace(
+            "$CRAB_ROOT", str(REPO / "CRAB")
+        )
         assert not re.search(r"\{[a-z_]+\}", text)
         config = json.loads(text)
 
@@ -196,18 +174,13 @@ def test_every_embedded_config_passes_crab_validation(
         for experiment in config["experiments"].values():
             for app in experiment["apps"].values():
                 assert wrapper_path_problem(app["path"]) is None, app["path"]
-                if "input_file" in app:
-                    assert Path(app["input_file"]) == qe_dir / "qe" / "si-scf.in"
-                    assert Path(app["input_file"]).is_file()
-                    assert Path(app["pseudo_dir"]) == qe_dir / "qe"
-                    assert list(Path(app["pseudo_dir"]).glob("*.UPF"))
         checked += 1
 
     assert checked == len(_combinations(doc)) >= 1
 
 
 def test_no_set_cluster_name_and_no_checkout_example_path() -> None:
-    """env.sh exports SBATCHMAN_CLUSTER_NAME, and the QE input comes from benchmarks/qe/qe."""
+    """env.sh exports SBATCHMAN_CLUSTER_NAME, and no jobs file reaches into the CRAB checkout."""
     for path in [*_all_files(BENCHMARKS), *_all_files(REPO / "configs")]:
         assert "set-cluster-name" not in path.read_text(errors="replace"), path
     for path in JOBS_PATHS:

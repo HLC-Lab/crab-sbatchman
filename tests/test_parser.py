@@ -404,7 +404,6 @@ def test_rows_load_into_sqlite_with_quoted_column_names(parse: Any, tmp_path: Pa
 
 RESULTS = Path(__file__).resolve().parent / "fixtures" / "results" / "leonardo"
 BLINK_NOISE_JOB = RESULTS / "crab_run_4" / "blink-noise-4n-1048576B" / "20261110_104331"
-QE_ALONE_JOB = RESULTS / "crab_qe_2" / "qe-alone-2n" / "20261110_104333"
 
 
 class RealJob:
@@ -453,23 +452,3 @@ def test_real_blink_noise_job_gives_one_table_with_the_six_experiment_folders(
     assert {r["var_msgsize"] for r in rows} == {1048576}
     assert {r["tag"] for r in rows} == {"blink-noise-4n-1048576B"}
     assert {r["config"] for r in rows} == {"crab_run_4"}
-
-
-def test_real_qe_alone_job_gives_the_wall_time_columns_then_the_extras(parse: Any) -> None:
-    job = RealJob(QE_ALONE_JOB, "qe-alone-2n", "crab_qe_2", 64054667, {"nodes": 2})
-
-    result = parse(job)
-
-    assert list(result) == ["app_0"]
-    rows = result["app_0"]
-    assert len(rows) == 10
-    assert list(rows[0]) == [
-        "run_id",
-        "msg_size",
-        "0_wall_time_seconds",
-        *EXTRA_COLUMNS,
-        "var_nodes",
-    ]
-    assert {r["experiment"] for r in rows} == {""}
-    assert rows[0]["0_wall_time_seconds"] == 18.07
-    assert isinstance(rows[0]["run_id"], int)

@@ -1,4 +1,4 @@
-"""Tests the starter workspaces for `sbatchman visualize` (benchmarks/blink and benchmarks/qe).
+"""Tests the starter workspaces for `sbatchman visualize` (benchmarks/blink).
 
 SbatchMan loads plots.json from the working directory and fills one sqlite table per key the
 parser returns. The tests rebuild that database in memory from the real (trimmed) Leonardo
@@ -31,15 +31,6 @@ JOBS = {
             "crab_run_4",
             64054665,
             {"nodes": 4, "msgsize": 1048576},
-        ),
-    ],
-    "qe": [
-        (
-            RESULTS / "crab_qe_2" / "qe-alone-2n" / "20261110_104333",
-            "qe-alone-2n",
-            "crab_qe_2",
-            64054667,
-            {"nodes": 2},
         ),
     ],
 }
@@ -173,14 +164,6 @@ def test_state_expression_labels_blink_baseline_and_noise() -> None:
     assert states == {"baseline", "noise"}
 
 
-def test_state_expression_labels_qe_alone_as_baseline() -> None:
-    connection = _database("qe")
-
-    states = {v for (v,) in connection.execute(f"SELECT DISTINCT {STATE_CASE} FROM app_0")}
-
-    assert states == {"baseline"}
-
-
 @pytest.mark.parametrize("folder", list(JOBS))
 def test_every_tab_uses_the_state_expression(folder: str) -> None:
     for tab in _workspace(folder)["tabs"]:
@@ -209,31 +192,6 @@ def test_blink_per_repetition_tab_has_the_three_repetitions_for_each_state() -> 
     assert pairs == {(s, r) for s in ("baseline", "noise") for r in ("r1", "r2", "r3")}
     assert tab["x"] == "rep"
     assert "state" in tab["group"]
-
-
-def test_qe_wall_time_tab_has_one_point_per_run() -> None:
-    tab = _workspace("qe")["tabs"][0]
-
-    columns, rows = _run("qe", tab["sql"])
-
-    assert tab["x"] == "run_id"
-    assert tab["y"] == ["wall_time_s"]
-    assert {"state", "tag"} <= set(tab["group"])
-    assert sorted(row[columns.index("run_id")] for row in rows) == list(range(1, 11))
-    assert all(17 < row[columns.index("wall_time_s")] < 19 for row in rows)
-
-
-def test_qe_average_tab_is_a_bar_chart_of_the_mean_per_tag_and_state() -> None:
-    tab = _workspace("qe")["tabs"][1]
-
-    columns, rows = _run("qe", tab["sql"])
-
-    assert tab["plotType"] == "bar"
-    assert len(rows) == 1
-    row = dict(zip(columns, rows[0], strict=True))
-    assert row["tag"] == "qe-alone-2n"
-    assert row["state"] == "baseline"
-    assert row["avg_wall_time_s"] == pytest.approx(17.78)
 
 
 def test_blink_baseline_vs_noise_tab_keeps_jobs_apart_by_tag() -> None:

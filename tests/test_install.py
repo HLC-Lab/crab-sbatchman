@@ -202,7 +202,6 @@ def make_umbrella(tmp_path: Path) -> Path:
     _write(root / "CRAB" / "stub" / "crab", STUB_CRAB.replace("@LOG@", log), executable=True)
     _write(root / "crab-wrappers" / "README.md", "wrappers\n")
     _write(root / "benchmarks" / "blink" / "smoke.yaml", JOBS_FILE)
-    _write(root / "benchmarks" / "qe" / "qe-alone.yaml", JOBS_FILE)
     _write(root / "site" / "leonardo.env", SITE_ENV)
     _write(root / "configs" / "leonardo.yaml", TOKEN_TEMPLATE)
     return root
@@ -290,7 +289,6 @@ def test_full_run_installs_everything(tmp_path):
     assert "<" not in configs
     assert 'SLURM_ACCOUNT="TESTACCT"' in (root / "site" / "local.env").read_text()
     assert (root / "benchmarks" / "blink" / "SbatchMan").is_dir()
-    assert (root / "benchmarks" / "qe" / "SbatchMan").is_dir()
     assert not any(call.split()[0] == "setup" for call in crab_calls(tmp_path))
     assert "+ make -C" in result.stdout
     assert "+ " + str(root / "CRAB" / ".venv" / "bin" / "pip") + " install" in result.stdout
@@ -312,7 +310,7 @@ def test_second_run_changes_nothing(tmp_path):
     assert "+ write" not in second.stdout
     assert "sbatchman init" not in second.stdout
     log_lines = (tmp_path / "sbatchman.log").read_text().splitlines()
-    assert len(log_lines) == 2
+    assert len(log_lines) == 1
     assert os.readlink(root / "CRAB" / "wrappers") == "../crab-wrappers"
 
 
@@ -326,7 +324,6 @@ def test_laptop_role_installs_web_extra_and_no_configs(tmp_path):
     assert not (root / ".local" / "configs.leonardo.yaml").exists()
     assert not (root / "site" / "local.env").exists()
     assert (root / "benchmarks" / "blink" / "SbatchMan").is_dir()
-    assert (root / "benchmarks" / "qe" / "SbatchMan").is_dir()
     assert not any(call.split()[0] == "setup" for call in crab_calls(tmp_path))
 
 
@@ -407,11 +404,10 @@ def test_a_stray_benchmarks_folder_without_yaml_gets_no_sbatchman_init(tmp_path)
 
     assert result.returncode == 0, result.stderr
     assert (root / "benchmarks" / "blink" / "SbatchMan").is_dir()
-    assert (root / "benchmarks" / "qe" / "SbatchMan").is_dir()
     assert not (root / "benchmarks" / "__pycache__" / "SbatchMan").exists()
     assert not (root / "benchmarks" / "notes" / "SbatchMan").exists()
     log_lines = (tmp_path / "sbatchman.log").read_text().splitlines()
-    assert sorted(Path(line).name for line in log_lines) == ["blink", "qe"]
+    assert sorted(Path(line).name for line in log_lines) == ["blink"]
 
 
 # ---- the self-check at the end of install.sh ----
@@ -439,20 +435,18 @@ def test_check_cluster_run_prints_ok_for_every_check(tmp_path):
     line_with(lines, "sbatchman", "resolves", "CRAB/.venv/bin")
     line_with(lines, "wrappers")
     line_with(lines, "benchmarks/blink/smoke.yaml", "crab validate")
-    line_with(lines, "benchmarks/qe/qe-alone.yaml", "crab validate")
     line_with(lines, "launch --dry-run", "benchmarks/blink/smoke.yaml")
-    assert len(lines) == 8
+    assert len(lines) == 7
     out = result.stdout.splitlines()
     assert "install.sh: all checks passed" in out
     assert out.index("install.sh: all checks passed") < out.index("install.sh finished: role cluster")
     # The jobs file's variables are filled in, one config per value, and the wrappers are found.
     validated = tmp_path / "validated"
     configs = {p.name: json.loads(p.read_text()) for p in validated.iterdir()}
-    assert sorted(c["nodes"] for c in configs.values()) == ["2", "2", "4", "4"]
+    assert sorted(c["nodes"] for c in configs.values()) == ["2", "4"]
     assert all(c["root"] == str(root / "CRAB") for c in configs.values())
     assert {c["input"] for c in configs.values()} == {
         str(root / "benchmarks" / "blink" / "in.txt"),
-        str(root / "benchmarks" / "qe" / "in.txt"),
     }
     assert (tmp_path / "validate-wrappers").read_text().strip() == str(root / "crab-wrappers")
     launch = (tmp_path / "launch.log").read_text()
@@ -476,64 +470,62 @@ def validated_names(tmp_path: Path, needle: str) -> list[str]:
 
 def test_check_validates_only_the_first_and_last_combination_by_default(tmp_path):
     root = make_umbrella(tmp_path)
-    _write(root / "benchmarks" / "qe" / "qe-alone.yaml", twelve_combination_jobs_file())
+    _write(root / "benchmarks" / "blink" / "smoke.yaml", twelve_combination_jobs_file())
     result = run_install(root, "--account", "TESTACCT")
     assert result.returncode == 0, result.stderr
-    assert validated_names(tmp_path, "qe-alone") == ["qe-alone-1.json", "qe-alone-12.json"]
-    assert validated_names(tmp_path, "smoke") == ["smoke-1.json", "smoke-2.json"]
+    assert validated_names(tmp_path, "smoke") == ["smoke-1.json", "smoke-12.json"]
     lines = check_lines(result)
     assert all(ln.startswith("OK ") for ln in lines), lines
-    assert len(lines) == 8
+    assert len(lines) == 7
 
 
 def test_check_runs_validate_once_for_a_one_combination_file(tmp_path):
     root = make_umbrella(tmp_path)
     one = JOBS_FILE.replace("  nodes:\n    - 2\n    - 4\n", "  nodes:\n    - 2\n")
-    _write(root / "benchmarks" / "qe" / "qe-alone.yaml", one)
+    _write(root / "benchmarks" / "blink" / "smoke.yaml", one)
     result = run_install(root, "--account", "TESTACCT")
     assert result.returncode == 0, result.stderr
-    assert validated_names(tmp_path, "qe-alone") == ["qe-alone-1.json"]
-    line_with(check_lines(result), "benchmarks/qe/qe-alone.yaml", "crab validate")
+    assert validated_names(tmp_path, "smoke") == ["smoke-1.json"]
+    line_with(check_lines(result), "benchmarks/blink/smoke.yaml", "crab validate")
 
 
-def test_shipped_jobs_files_cost_8_validate_runs_by_default_and_28_with_full_check(tmp_path):
+def test_shipped_jobs_files_cost_6_validate_runs_by_default_and_26_with_full_check(tmp_path):
     root = make_umbrella(tmp_path)
     for old in (root / "benchmarks").rglob("*.yaml"):
         old.unlink()
     shipped = sorted((REPO / "benchmarks").glob("*/*.yaml"))
-    assert len(shipped) == 6
+    assert len(shipped) == 4
     for src in shipped:
         _write(root / "benchmarks" / src.parent.name / src.name, src.read_text())
     default = run_install(root, "--account", "TESTACCT")
     assert default.returncode == 0, default.stdout + default.stderr
-    assert len(crab_calls(tmp_path)) == 8  # 2 + 2 for the 12-combination files, 1 each for four
+    assert len(crab_calls(tmp_path)) == 6  # 2 + 2 for the 12-combination files, 1 each for two
     (tmp_path / "crab.log").unlink()
     full = run_install(root, "--account", "TESTACCT", "--full-check")
     assert full.returncode == 0, full.stdout + full.stderr
-    assert len(crab_calls(tmp_path)) == 28
+    assert len(crab_calls(tmp_path)) == 26
 
 
 def test_full_check_validates_every_combination(tmp_path):
     root = make_umbrella(tmp_path)
-    _write(root / "benchmarks" / "qe" / "qe-alone.yaml", twelve_combination_jobs_file())
+    _write(root / "benchmarks" / "blink" / "smoke.yaml", twelve_combination_jobs_file())
     result = run_install(root, "--account", "TESTACCT", "--full-check")
     assert result.returncode == 0, result.stderr
-    assert validated_names(tmp_path, "qe-alone") == [f"qe-alone-{n}.json" for n in range(1, 13)]
-    assert len(validated_names(tmp_path, "smoke")) == 2
+    assert validated_names(tmp_path, "smoke") == [f"smoke-{n}.json" for n in range(1, 13)]
     lines = check_lines(result)
     assert all(ln.startswith("OK ") for ln in lines), lines
-    assert len(lines) == 8
+    assert len(lines) == 7
 
 
 def test_a_failing_last_combination_still_fails_the_check(tmp_path):
     root = make_umbrella(tmp_path)
-    _write(root / "benchmarks" / "qe" / "qe-alone.yaml", twelve_combination_jobs_file())
+    _write(root / "benchmarks" / "blink" / "smoke.yaml", twelve_combination_jobs_file())
     result = run_install(
-        root, "--account", "TESTACCT", env_extra={"STUB_VALIDATE_FAIL": "qe-alone-12"}
+        root, "--account", "TESTACCT", env_extra={"STUB_VALIDATE_FAIL": "smoke-12"}
     )
     assert result.returncode == 1
     failed = [ln for ln in check_lines(result) if ln.startswith("FAIL ")]
-    assert len(failed) == 1 and "benchmarks/qe/qe-alone.yaml" in failed[0], failed
+    assert len(failed) == 1 and "benchmarks/blink/smoke.yaml" in failed[0], failed
     assert "stub rejects this config" in failed[0]
     assert "install.sh: 1 check(s) failed" in result.stdout.splitlines()
 
@@ -586,7 +578,7 @@ def test_the_dry_run_launch_runs_in_a_temporary_copy_with_the_same_jobs_file(tmp
     assert log["SBATCHMAN_CLUSTER_NAME"] == "leonardo"
 
 
-def test_the_temporary_copy_gets_its_own_sbatchman_init_and_the_real_ones_stay_two(tmp_path):
+def test_the_temporary_copy_gets_its_own_sbatchman_init_and_the_real_one_stays_untouched(tmp_path):
     root = make_umbrella(tmp_path)
     result = run_install(root, "--account", "TESTACCT")
     assert result.returncode == 0, result.stderr
@@ -595,7 +587,7 @@ def test_the_temporary_copy_gets_its_own_sbatchman_init_and_the_real_ones_stay_t
     assert Path(inits[0]).parts[-2:] == ("benchmarks", "blink")
     assert Path(inits[0]).resolve() == Path(launch_log(tmp_path)["PWD_P"])
     real = (tmp_path / "sbatchman.log").read_text().splitlines()
-    assert sorted(Path(line).name for line in real) == ["blink", "qe"]
+    assert sorted(Path(line).name for line in real) == ["blink"]
 
 
 def test_the_temporary_copy_holds_only_the_jobs_file_and_the_local_link(tmp_path):
@@ -698,15 +690,15 @@ def test_check_failed_validate_names_the_file_and_later_checks_still_run(tmp_pat
         root,
         "--account",
         "TESTACCT",
-        env_extra={"STUB_VALIDATE_FAIL": "qe-alone"},
+        env_extra={"STUB_VALIDATE_FAIL": "smoke"},
     )
     assert result.returncode == 1
     lines = check_lines(result)
     failed = [ln for ln in lines if ln.startswith("FAIL ")]
     assert len(failed) == 1, lines
-    assert "benchmarks/qe/qe-alone.yaml" in failed[0]
+    assert "benchmarks/blink/smoke.yaml" in failed[0]
     assert "stub rejects this config" in failed[0]
-    line_with(lines, "benchmarks/blink/smoke.yaml", "crab validate")
+    line_with(lines, "wrappers")
     # The dry-run launch comes after the failed file and still ran.
     assert lines[-1].startswith("OK ") and "launch --dry-run" in lines[-1]
     assert "install.sh: 1 check(s) failed" in result.stdout.splitlines()
@@ -791,12 +783,11 @@ def test_dry_run_lists_the_checks_and_runs_none(tmp_path):
     result = run_install(root, "--dry-run", "--account", "TESTACCT")
     assert result.returncode == 0, result.stderr
     would = [ln for ln in result.stdout.splitlines() if ln.startswith("would check: ")]
-    assert len(would) == 8, would
+    assert len(would) == 7, would
     line_with(would, "python 3.10")
     line_with(would, "sbatchman 2.0.4")
     line_with(would, "wrappers")
     line_with(would, "jobs file", "benchmarks/blink/smoke.yaml")
-    line_with(would, "benchmarks/qe/qe-alone.yaml")
     line_with(would, "launch --dry-run")
     assert check_lines(result) == []
     assert "check(s) failed" not in result.stdout
@@ -826,7 +817,7 @@ def test_second_run_prints_the_same_check_lines_and_changes_no_file(tmp_path):
     second = run_install(root, "--account", "TESTACCT")
     assert second.returncode == 0, second.stderr
     assert check_lines(second) == check_lines(first)
-    assert len(check_lines(second)) == 8
+    assert len(check_lines(second)) == 7
     assert snapshot() == before
     assert "+ write" not in second.stdout
 
@@ -841,9 +832,8 @@ def test_laptop_role_runs_only_the_checks_that_apply(tmp_path):
     line_with(lines, "sbatchman 2.0.4")
     line_with(lines, "wrappers")
     line_with(lines, "benchmarks/blink/smoke.yaml", "crab validate")
-    line_with(lines, "benchmarks/qe/qe-alone.yaml", "crab validate")
     assert not any("launch" in ln for ln in lines)
-    assert len(lines) == 7
+    assert len(lines) == 6
     assert not (tmp_path / "launch.log").exists()
     assert "install.sh: all checks passed" in result.stdout.splitlines()
 
@@ -853,7 +843,7 @@ def test_laptop_role_dry_run_lists_no_launch_check(tmp_path):
     result = run_install(root, "--role", "laptop", "--dry-run")
     assert result.returncode == 0, result.stderr
     would = [ln for ln in result.stdout.splitlines() if ln.startswith("would check: ")]
-    assert len(would) == 7, would
+    assert len(would) == 6, would
     assert not any("launch" in ln for ln in would)
 
 
