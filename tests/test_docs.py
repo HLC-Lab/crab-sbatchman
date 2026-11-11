@@ -54,6 +54,9 @@ def _allowed_missing_path(token: str) -> bool:
     # Per-machine files: the site file made by install.sh, the git-ignored .local folder, env.sh.
     if token == "site/local.env" or token.startswith(".local/") or token == "env.sh":
         return True
+    # The environment and the wrappers link inside CRAB/ are made by install.sh, not by the clone.
+    if token.startswith("CRAB/.venv") or token == "CRAB/wrappers":
+        return True
     # The template benchmark folder does not exist until a later step creates it.
     if token.startswith("benchmarks/_template"):
         return True
