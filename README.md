@@ -5,6 +5,16 @@ to add their own: [CRAB](CRAB/README.md), the shared wrappers, a pinned SbatchMa
 benchmarks and an installer. The versions in one checkout match, because the two submodules are
 pinned to the commits that were tested together.
 
+**Tested and not yet tested.**
+
+- Tested: the installer logic with stubs (the automated tests in `tests/`); the smoke job launched
+  on Leonardo from a hand-made umbrella-style checkout; `crab web` and a small `sbatchman fetch`
+  over the certificate login; `sbatchman visualize` on real Blink noise results (both Blink plots
+  render in a browser).
+- Not yet tested: a fresh `git clone --recurse-submodules` plus `./install.sh` on Leonardo; large
+  or repeated fetches across rotating login nodes; `visualize` on a login node through a tunnel;
+  the QE plots (not seen yet); the "Add your own benchmark" tutorial.
+
 ## What this is
 
 CRAB runs one or more applications at the same time on a Slurm allocation and records what each one
@@ -54,7 +64,7 @@ cd benchmarks/blink && sbatchman launch -f smoke.yaml
   activates `CRAB/.venv`, exports `SBATCHMAN_CLUSTER_NAME` (SbatchMan 2.0.4 reads it, so
   `sbatchman set-cluster-name` is not needed) and `CRAB_PATH_WRAPPERS`, and prints where `crab` and
   `sbatchman` come from. Check that both paths are inside `CRAB/.venv`. (`source CRAB/.venv/bin/activate`
-  clears `PYTHONPATH` too once the pinned CRAB includes that fix; `env.sh` is the safe way.)
+  clears `PYTHONPATH` too; `env.sh` also sets the other variables.)
 - `sbatchman launch -f smoke.yaml` submits the smallest job: an all-to-all on 2 nodes. Launch from
   inside the benchmark folder, because every folder is its own SbatchMan project.
 
@@ -234,8 +244,8 @@ SELECT "0_Avg-Duration_s" FROM app_0
 
 | Benchmark | Plot | Shows |
 |---|---|---|
-| Blink | Baseline vs noise (bar) | Average duration in ms per message size, grouped by state and node count. |
-| Blink | Per repetition (bar) | The same average, per repetition `r1` to `rN`. |
+| Blink | Baseline vs noise (bar) | Average duration in ms per message size, grouped by state, job tag and node count. |
+| Blink | Per repetition (bar) | The same average, per repetition `r1` to `rN`, one bar per job tag. |
 | QE | Wall time per run (line) | The wall time of each run, one line per state and tag. |
 | QE | Average wall time (bar) | The average wall time per job tag, baseline against noise. |
 
@@ -511,8 +521,9 @@ More rows are in the [CRAB troubleshooting table](CRAB/docs/using/sbatchman-inte
   `scratch/` folders of finished jobs hold no results and can be deleted. List them with
   `find benchmarks/qe/SbatchMan -type d -name scratch -prune`.
 - **The fetch route is tested lightly.** `sbatchman fetch` through the laptop's `remotes-config.toml`
-  worked against Leonardo for one small job. Large folders and fetches that land on different login
-  nodes are not tested.
-- **The plots were not seen in a browser yet.** The plot definitions return the right rows and build
-  a plot through the server's HTTP API on real Blink and QE results, but how they look on the page
-  is not checked. `visualize` on a login node through an ssh tunnel is untested.
+  worked against Leonardo for the smoke job's folder only. Large folders and fetches that land on
+  different login nodes are not tested.
+- **The QE plots were not seen in a browser yet.** The two Blink plots were seen rendering in a
+  browser on real Blink noise results. The QE plot definitions return the right rows and build a
+  plot through the server's HTTP API on real QE results, but how they look on the page is not
+  checked. `visualize` on a login node through an ssh tunnel is untested.
