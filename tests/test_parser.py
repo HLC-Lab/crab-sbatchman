@@ -4,6 +4,7 @@ The parser is not a package: SbatchMan loads it from the working directory, so t
 by path. A duck-typed job stands in for the SbatchMan Job (only the fields the parser reads).
 """
 
+import enum
 import importlib.util
 import shutil
 import sqlite3
@@ -40,7 +41,7 @@ class FakeJob:
     def __init__(
         self,
         base: Path,
-        status: str = "COMPLETED",
+        status: Any = "COMPLETED",
         variables: dict[str, Any] | None = None,
     ) -> None:
         self.status = status
@@ -91,11 +92,33 @@ def test_completed_blink_job_gives_one_table_with_typed_columns(
     assert first["var_nodes"] == 2
 
 
-@pytest.mark.parametrize("status", ["FAILED", "RUNNING"])
-def test_a_job_that_did_not_complete_is_skipped(parse: Any, tmp_path: Path, status: str) -> None:
+@pytest.mark.parametrize("status", ["RUNNING", "PENDING", "QUEUED", "CANCELLED", "UNKNOWN"])
+def test_a_job_that_is_not_finished_is_skipped(parse: Any, tmp_path: Path, status: str) -> None:
     _put_fixture(tmp_path / "run")
 
     assert parse(FakeJob(tmp_path, status=status)) is None
+
+
+@pytest.mark.parametrize("status", ["COMPLETED", "FAILED", "TIMEOUT", "CHECK_FAIL"])
+def test_a_finished_job_keeps_its_csvs_whatever_its_status(
+    parse: Any, tmp_path: Path, status: str
+) -> None:
+    _put_fixture(tmp_path / "run")
+
+    rows = parse(FakeJob(tmp_path, status=status))["app_0"]
+
+    assert len(rows) == 25
+
+
+def test_the_status_may_be_an_enum_as_in_sbatchman(parse: Any, tmp_path: Path) -> None:
+    class Status(enum.Enum):
+        TIMEOUT = "TIMEOUT"
+        RUNNING = "RUNNING"
+
+    _put_fixture(tmp_path / "run")
+
+    assert len(parse(FakeJob(tmp_path, status=Status.TIMEOUT))["app_0"]) == 25
+    assert parse(FakeJob(tmp_path, status=Status.RUNNING)) is None
 
 
 def test_no_csv_gives_none(parse: Any, tmp_path: Path) -> None:
@@ -143,6 +166,77 @@ def test_nested_experiment_path_is_relative_to_run(parse: Any, tmp_path: Path) -
     rows = parse(FakeJob(tmp_path))["app_0"]
 
     assert {r["experiment"] for r in rows} == {"outer/inner"}
+
+
+def test_apps_working_folders_are_not_read(parse: Any, tmp_path: Path) -> None:
+    run = tmp_path / "run"
+    _put_fixture(run)
+    _put_fixture(run / "run_1" / "app_0")
+    _put_fixture(run / "artifacts" / "run_1" / "app_0")
+    _put_fixture(run / "exp_a" / "run_1" / "app_0")
+    _put_fixture(run / "a" / "b" / "c")
+
+    rows = parse(FakeJob(tmp_path))["app_0"]
+
+    assert len(rows) == 25
+    assert {r["experiment"] for r in rows} == {""}
+
+
+def test_apps_working_folders_of_a_multi_experiment_job_are_not_read(
+    parse: Any, tmp_path: Path
+) -> None:
+    _put_fixture(tmp_path / "r1_baseline")
+    _put_fixture(tmp_path / "r1_baseline" / "run_1" / "app_0")
+    _put_fixture(tmp_path / "r1_noise")
+    _put_fixture(tmp_path / "r1_noise" / "run_3" / "app_1")
+
+    rows = parse(FakeJob(tmp_path))["app_0"]
+
+    assert [r["experiment"] for r in rows] == ["r1_baseline"] * 25 + ["r1_noise"] * 25
+
+
+def test_an_empty_cell_is_none_not_an_empty_string(parse: Any, tmp_path: Path) -> None:
+    (tmp_path / "run").mkdir()
+    (tmp_path / "run" / "data_app_0.csv").write_text("run_id,time_s,label\n1,,fast\n2,3.5,\n")
+
+    rows = parse(FakeJob(tmp_path))["app_0"]
+
+    assert [r["time_s"] for r in rows] == [None, 3.5]
+    assert [r["label"] for r in rows] == ["fast", None]
+    connection = sqlite3.connect(":memory:")
+    connection.execute("CREATE TABLE app_0 (time_s)")
+    connection.executemany("INSERT INTO app_0 VALUES (?)", [(r["time_s"],) for r in rows])
+    assert connection.execute("SELECT AVG(time_s) FROM app_0").fetchone() == (3.5,)
+
+
+def test_a_csv_column_named_like_an_extra_keeps_the_extra(parse: Any, tmp_path: Path) -> None:
+    run = tmp_path / "run"
+    run.mkdir()
+    (run / "data_app_0.csv").write_text("run_id,tag,job_id,var_nodes,time_s\n1,mine,7,9,2.5\n")
+    (run / "data_app_1.csv").write_text("run_id,time_s\n1,2.5\n")
+
+    result = parse(FakeJob(tmp_path, variables={"nodes": 2}))
+
+    row = result["app_0"][0]
+    assert row["tag"] == "a2a-smoke"
+    assert row["job_id"] == 4242
+    assert row["var_nodes"] == 2
+    assert row["time_s"] == 2.5
+    assert list(row) == ["run_id", "time_s", *EXTRA_COLUMNS, "var_nodes"]
+    assert list(result["app_1"][0]) == ["run_id", "time_s", *EXTRA_COLUMNS, "var_nodes"]
+
+
+def test_a_csv_directly_in_the_run_folder_is_experiment_empty_next_to_others(
+    parse: Any, tmp_path: Path
+) -> None:
+    _put_fixture(tmp_path / "run")
+    _put_fixture(tmp_path / "r1_baseline")
+    _put_fixture(tmp_path / "r1_noise")
+
+    rows = parse(FakeJob(tmp_path))["app_0"]
+
+    assert len(rows) == 75
+    assert sorted({r["experiment"] for r in rows}) == ["", "r1_baseline", "r1_noise"]
 
 
 def test_variables_none_adds_no_var_columns(parse: Any, tmp_path: Path) -> None:
