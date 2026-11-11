@@ -268,6 +268,106 @@ def test_a_broken_csv_is_skipped(parse: Any, tmp_path: Path) -> None:
     assert list(result) == ["app_0"]
 
 
+def _warnings(capsys: Any) -> list[str]:
+    return [line for line in capsys.readouterr().err.splitlines() if line.strip()]
+
+
+def test_a_clean_file_prints_nothing_to_stderr(parse: Any, tmp_path: Path, capsys: Any) -> None:
+    _put_fixture(tmp_path / "run")
+
+    parse(FakeJob(tmp_path))
+
+    assert capsys.readouterr().err == ""
+
+
+def test_a_cut_last_row_is_dropped_and_the_good_rows_stay(
+    parse: Any, tmp_path: Path, capsys: Any
+) -> None:
+    lines = FIXTURE.read_text().splitlines()
+    run = tmp_path / "run"
+    run.mkdir()
+    path = run / "data_app_0.csv"
+    path.write_text("\n".join([*lines[:25], "25,1048576"]))  # header + 24 rows + a cut row
+
+    rows = parse(FakeJob(tmp_path))["app_0"]
+
+    assert len(rows) == 24
+    assert rows[0]["msg_size"] == 1048576
+    warnings = _warnings(capsys)
+    assert warnings == [
+        f"parser: {path}: skipped line(s) 26 (cell count differs from the header)"
+    ]
+
+
+def test_a_row_with_an_extra_cell_in_the_middle_is_skipped(
+    parse: Any, tmp_path: Path, capsys: Any
+) -> None:
+    run = tmp_path / "run"
+    run.mkdir()
+    path = run / "data_app_0.csv"
+    path.write_text("run_id,time_s\n1,1.5\n2,2.5,oops\n3,3.5\n")
+
+    rows = parse(FakeJob(tmp_path))["app_0"]
+
+    assert [r["run_id"] for r in rows] == [1, 3]
+    assert _warnings(capsys) == [
+        f"parser: {path}: skipped line(s) 3 (cell count differs from the header)"
+    ]
+
+
+def test_several_bad_rows_in_one_file_give_one_warning_with_every_line(
+    parse: Any, tmp_path: Path, capsys: Any
+) -> None:
+    run = tmp_path / "run"
+    run.mkdir()
+    path = run / "data_app_0.csv"
+    path.write_text("a,b\n1,1\n2\n3,3\n4,4,4\n5,5\n6\n")
+
+    rows = parse(FakeJob(tmp_path))["app_0"]
+
+    assert [r["a"] for r in rows] == [1, 3, 5]
+    assert _warnings(capsys) == [
+        f"parser: {path}: skipped line(s) 3, 5, 7 (cell count differs from the header)"
+    ]
+
+
+def test_a_file_with_no_good_row_is_dropped_with_one_warning(
+    parse: Any, tmp_path: Path, capsys: Any
+) -> None:
+    run = tmp_path / "run"
+    run.mkdir()
+    path = run / "data_app_0.csv"
+    path.write_text("a,b\n1\n")
+    (run / "data_app_1.csv").write_text("a,b\n1,2\n")
+
+    result = parse(FakeJob(tmp_path))
+
+    assert list(result) == ["app_1"]
+    assert _warnings(capsys) == [
+        f"parser: {path}: file skipped (no good rows; skipped line(s) 2)"
+    ]
+
+
+@pytest.mark.parametrize(
+    ("content", "reason"),
+    [
+        (b"", "empty file"),
+        (b"run_id,msg_size\n", "no data rows"),
+        (b"\xff\xfe\x00\x01 not text\n\x00\x00", "not valid UTF-8"),
+    ],
+)
+def test_a_file_dropped_whole_gives_one_warning_with_the_reason(
+    parse: Any, tmp_path: Path, capsys: Any, content: bytes, reason: str
+) -> None:
+    run = tmp_path / "run"
+    run.mkdir()
+    path = run / "data_app_0.csv"
+    path.write_bytes(content)
+
+    assert parse(FakeJob(tmp_path)) is None
+    assert _warnings(capsys) == [f"parser: {path}: file skipped ({reason})"]
+
+
 def test_only_broken_csv_gives_none(parse: Any, tmp_path: Path) -> None:
     (tmp_path / "run").mkdir()
     (tmp_path / "run" / "data_app_0.csv").write_text("")

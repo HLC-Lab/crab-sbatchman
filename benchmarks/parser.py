@@ -6,7 +6,8 @@ FAILED, TIMEOUT or CHECK_FAIL, so the experiments that did finish are not lost; 
 and cancelled jobs are skipped) and returns one table per app: "app_<i>" holds every CSV column
 (numbers typed, an empty cell is None), then app, tag, config, job_id, experiment and one
 var_<name> column per SbatchMan variable of the job. A CSV column with the name of one of those
-extra columns is dropped: the extra wins. Files of one app share its table.
+extra columns is dropped: the extra wins. Files of one app share its table. A row with more or fewer cells than the header is
+skipped and a file that cannot be used is dropped; each prints one warning line on stderr.
 
 Where it looks (base = the job folder): a CSV directly in <base>/run is experiment "" (a job with
 one experiment), always, even if that folder is a multi-experiment job's experiment named "run";
@@ -18,6 +19,7 @@ enters an app's working folders (run_<n>, app_<n>, artifacts, scratch): they can
 
 import csv
 import re
+import sys
 from pathlib import Path
 
 FILE_NAME = re.compile(r"^data_app_(\d+)\.csv$")
@@ -42,21 +44,51 @@ def _number(text):
         return text
 
 
+def _warn(path, message):
+    """One line on stderr about one file, so a skipped row or file is never silent."""
+    print(f"parser: {path}: {message}", file=sys.stderr)
+
+
+def _lines(numbers):
+    return "skipped line(s) " + ", ".join(str(number) for number in numbers)
+
+
 def _read(path):
-    """The typed rows of one CSV file, or None when it is empty, malformed or unreadable."""
+    """The typed rows of one CSV file, or None when the file is dropped whole (empty, header only,
+    unreadable, malformed, or no good row). A row with more or fewer cells than the header (a job
+    killed mid-write cuts the last one) is skipped and the good rows stay. One warning on stderr
+    per affected file, with the reason or the line numbers."""
+    bad_lines = []
     try:
         with path.open(newline="", encoding="utf-8") as handle:
             reader = csv.DictReader(handle)
             if not reader.fieldnames:
+                _warn(path, "file skipped (empty file)")
                 return None
             rows = []
             for raw in reader:
                 if None in raw or None in raw.values():
-                    return None
+                    bad_lines.append(reader.line_num)
+                    continue
                 rows.append({name: _number(value) for name, value in raw.items()})
-    except (OSError, UnicodeDecodeError, csv.Error):
+    except UnicodeDecodeError:
+        _warn(path, "file skipped (not valid UTF-8)")
         return None
-    return rows or None
+    except csv.Error as error:
+        _warn(path, f"file skipped (malformed CSV: {error})")
+        return None
+    except OSError as error:
+        _warn(path, f"file skipped (unreadable: {error.strerror or error})")
+        return None
+    if not rows:
+        if bad_lines:
+            _warn(path, f"file skipped (no good rows; {_lines(bad_lines)})")
+        else:
+            _warn(path, "file skipped (no data rows)")
+        return None
+    if bad_lines:
+        _warn(path, f"{_lines(bad_lines)} (cell count differs from the header)")
+    return rows
 
 
 def _csv_files(folder, skip=()):
