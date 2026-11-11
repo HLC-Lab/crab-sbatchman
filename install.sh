@@ -284,6 +284,8 @@ fi
 for dir in "$ROOT"/benchmarks/*/; do
     [[ -d "$dir" ]] || continue
     dir="${dir%/}"
+    # Only folders that hold a benchmark file: a stray folder (__pycache__) is not a project.
+    compgen -G "$dir/*.yaml" > /dev/null || continue
     if [[ ! -d "$dir/SbatchMan" ]]; then
         run_in "$dir" "$VENV_BIN/sbatchman" init
     fi

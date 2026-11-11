@@ -91,8 +91,8 @@ def make_umbrella(tmp_path: Path) -> Path:
     )
     _write(root / "CRAB" / "stub" / "crab", STUB_CRAB.replace("@LOG@", log), executable=True)
     _write(root / "crab-wrappers" / "README.md", "wrappers\n")
-    (root / "benchmarks" / "blink").mkdir(parents=True)
-    (root / "benchmarks" / "qe").mkdir(parents=True)
+    _write(root / "benchmarks" / "blink" / "smoke.yaml", "a: 1\n")
+    _write(root / "benchmarks" / "qe" / "qe-alone.yaml", "a: 1\n")
     _write(root / "site" / "leonardo.env", SITE_ENV)
     _write(root / "configs" / "leonardo.yaml", TOKEN_TEMPLATE)
     return root
@@ -267,3 +267,20 @@ def test_unknown_flag_prints_usage_and_exits_2(tmp_path):
     assert result.returncode == 2
     assert "Usage" in result.stderr
     assert listing(root) == before
+
+
+def test_a_stray_benchmarks_folder_without_yaml_gets_no_sbatchman_init(tmp_path):
+    root = make_umbrella(tmp_path)
+    (root / "benchmarks" / "__pycache__").mkdir()
+    _write(root / "benchmarks" / "__pycache__" / "parser.cpython-314.pyc", "x")
+    (root / "benchmarks" / "notes").mkdir()
+
+    result = run_install(root, "--account", "TESTACCT", "--no-setup")
+
+    assert result.returncode == 0, result.stderr
+    assert (root / "benchmarks" / "blink" / "SbatchMan").is_dir()
+    assert (root / "benchmarks" / "qe" / "SbatchMan").is_dir()
+    assert not (root / "benchmarks" / "__pycache__" / "SbatchMan").exists()
+    assert not (root / "benchmarks" / "notes" / "SbatchMan").exists()
+    log_lines = (tmp_path / "sbatchman.log").read_text().splitlines()
+    assert sorted(Path(line).name for line in log_lines) == ["blink", "qe"]
