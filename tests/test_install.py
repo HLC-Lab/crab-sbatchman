@@ -394,6 +394,83 @@ def test_check_cluster_run_prints_ok_for_every_check(tmp_path):
     assert not any(call.split()[0] == "setup" for call in crab_calls(tmp_path))
 
 
+def twelve_combination_jobs_file() -> str:
+    """JOBS_FILE with two variables: nodes 1..3 times size 1..4 = 12 combinations."""
+    return JOBS_FILE.replace(
+        "  nodes:\n    - 2\n    - 4\n",
+        "  nodes:\n    - 1\n    - 2\n    - 3\n  size:\n    - 1\n    - 2\n    - 3\n    - 4\n",
+    ).replace('{"nodes": "{nodes}"', '{"nodes": "{nodes}", "size": "{size}"')
+
+
+def validated_names(tmp_path: Path, needle: str) -> list[str]:
+    """The JSON file names the stub crab was asked to validate, in call order."""
+    return [Path(c.split()[1]).name for c in crab_calls(tmp_path) if needle in c]
+
+
+def test_check_validates_only_the_first_and_last_combination_by_default(tmp_path):
+    root = make_umbrella(tmp_path)
+    _write(root / "benchmarks" / "qe" / "qe-alone.yaml", twelve_combination_jobs_file())
+    result = run_install(root, "--account", "TESTACCT")
+    assert result.returncode == 0, result.stderr
+    assert validated_names(tmp_path, "qe-alone") == ["qe-alone-1.json", "qe-alone-12.json"]
+    assert validated_names(tmp_path, "smoke") == ["smoke-1.json", "smoke-2.json"]
+    lines = check_lines(result)
+    assert all(ln.startswith("OK ") for ln in lines), lines
+    assert len(lines) == 8
+
+
+def test_check_runs_validate_once_for_a_one_combination_file(tmp_path):
+    root = make_umbrella(tmp_path)
+    one = JOBS_FILE.replace("  nodes:\n    - 2\n    - 4\n", "  nodes:\n    - 2\n")
+    _write(root / "benchmarks" / "qe" / "qe-alone.yaml", one)
+    result = run_install(root, "--account", "TESTACCT")
+    assert result.returncode == 0, result.stderr
+    assert validated_names(tmp_path, "qe-alone") == ["qe-alone-1.json"]
+    line_with(check_lines(result), "benchmarks/qe/qe-alone.yaml", "crab validate")
+
+
+def test_shipped_jobs_files_cost_8_validate_runs_by_default_and_28_with_full_check(tmp_path):
+    root = make_umbrella(tmp_path)
+    for old in (root / "benchmarks").rglob("*.yaml"):
+        old.unlink()
+    shipped = sorted((REPO / "benchmarks").glob("*/*.yaml"))
+    assert len(shipped) == 6
+    for src in shipped:
+        _write(root / "benchmarks" / src.parent.name / src.name, src.read_text())
+    default = run_install(root, "--account", "TESTACCT")
+    assert default.returncode == 0, default.stdout + default.stderr
+    assert len(crab_calls(tmp_path)) == 8  # 2 + 2 for the 12-combination files, 1 each for four
+    (tmp_path / "crab.log").unlink()
+    full = run_install(root, "--account", "TESTACCT", "--full-check")
+    assert full.returncode == 0, full.stdout + full.stderr
+    assert len(crab_calls(tmp_path)) == 28
+
+
+def test_full_check_validates_every_combination(tmp_path):
+    root = make_umbrella(tmp_path)
+    _write(root / "benchmarks" / "qe" / "qe-alone.yaml", twelve_combination_jobs_file())
+    result = run_install(root, "--account", "TESTACCT", "--full-check")
+    assert result.returncode == 0, result.stderr
+    assert validated_names(tmp_path, "qe-alone") == [f"qe-alone-{n}.json" for n in range(1, 13)]
+    assert len(validated_names(tmp_path, "smoke")) == 2
+    lines = check_lines(result)
+    assert all(ln.startswith("OK ") for ln in lines), lines
+    assert len(lines) == 8
+
+
+def test_a_failing_last_combination_still_fails_the_check(tmp_path):
+    root = make_umbrella(tmp_path)
+    _write(root / "benchmarks" / "qe" / "qe-alone.yaml", twelve_combination_jobs_file())
+    result = run_install(
+        root, "--account", "TESTACCT", env_extra={"STUB_VALIDATE_FAIL": "qe-alone-12"}
+    )
+    assert result.returncode == 1
+    failed = [ln for ln in check_lines(result) if ln.startswith("FAIL ")]
+    assert len(failed) == 1 and "benchmarks/qe/qe-alone.yaml" in failed[0], failed
+    assert "stub rejects this config" in failed[0]
+    assert "install.sh: 1 check(s) failed" in result.stdout.splitlines()
+
+
 def test_check_leaves_no_temporary_files_in_the_umbrella(tmp_path):
     root = make_umbrella(tmp_path)
     first = run_install(root, "--account", "TESTACCT")
@@ -617,7 +694,7 @@ def test_usage_lists_only_the_kept_flags(tmp_path):
     assert result.returncode == 0
     for gone in ("--no-setup", "--login-host", "--user", "--remote-dir", "wizard", "SITE_"):
         assert gone not in result.stdout, gone
-    for kept in ("--role", "--account", "--no-check", "--dry-run"):
+    for kept in ("--role", "--account", "--no-check", "--full-check", "--dry-run"):
         assert kept in result.stdout, kept
 
 

@@ -9,8 +9,8 @@ SBATCHMAN_VERSION="${SBATCHMAN_VERSION:-2.0.4}"
 
 usage() {
     cat <<'EOF'
-Usage: ./install.sh [--role cluster|laptop] [--account NAME] [--no-check] [--dry-run]
-                    [-h|--help]
+Usage: ./install.sh [--role cluster|laptop] [--account NAME] [--no-check] [--full-check]
+                    [--dry-run] [-h|--help]
 
   --role ROLE      cluster (default): CRAB, SbatchMan and the configs file.
                    laptop: CRAB with the web dashboard and SbatchMan with its plots.
@@ -20,6 +20,8 @@ Usage: ./install.sh [--role cluster|laptop] [--account NAME] [--no-check] [--dry
                    through 'crab validate' and, for the cluster role, a dry-run launch of
                    the smoke file), then a summary, and exits 1 if any item failed. It
                    submits no Slurm job.
+  --full-check     in the self-check, run 'crab validate' on every variable combination of
+                   each jobs file (default: the first and the last combination only).
   --dry-run        print every command and file write, run and write nothing.
 EOF
 }
@@ -27,6 +29,7 @@ EOF
 ROLE=cluster
 ACCOUNT_FLAG=""
 NO_CHECK=0
+FULL_CHECK=0
 DRY_RUN=0
 
 while [[ $# -gt 0 ]]; do
@@ -43,6 +46,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         --no-check)
             NO_CHECK=1
+            shift
+            ;;
+        --full-check)
+            FULL_CHECK=1
             shift
             ;;
         --dry-run)
@@ -352,7 +359,8 @@ PY
 
 # check_jobs_file FILE OUTDIR: every config of the jobs file passes `crab validate`.
 check_jobs_file() {
-    local file="$1" outdir="$2" rel out json count=0
+    local file="$1" outdir="$2" rel out json count=0 total=0
+    local all=() picked=()
     rel="${file#"$ROOT"/}"
     mkdir -p "$outdir"
     if ! out="$("$VENV_BIN/python" -c "$EXTRACT_PY" "$file" "$outdir" "$CRAB_DIR" 2>&1)"; then
@@ -361,16 +369,26 @@ check_jobs_file() {
     fi
     while IFS= read -r json; do
         [[ -f "$json" ]] || continue
+        all+=("$json")
+    done <<<"$out"
+    total=${#all[@]}
+    if [[ $total -eq 0 ]]; then
+        check_fail "jobs file $rel" "no config to validate"
+        return 0
+    fi
+    # Without --full-check only the first and the last combination go through crab validate.
+    if [[ $FULL_CHECK -eq 1 || $total -le 2 ]]; then
+        picked=("${all[@]}")
+    else
+        picked=("${all[0]}" "${all[$((total - 1))]}")
+    fi
+    for json in "${picked[@]}"; do
         count=$((count + 1))
         if ! out="$(CRAB_PATH_WRAPPERS="$ROOT/crab-wrappers" CRAB_ROOT="$CRAB_DIR" "$VENV_BIN/crab" validate "$json" 2>&1)"; then
             check_fail "jobs file $rel" "crab validate: $(one_line "$out")"
             return 0
         fi
-    done <<<"$out"
-    if [[ $count -eq 0 ]]; then
-        check_fail "jobs file $rel" "no config to validate"
-        return 0
-    fi
+    done
     check_ok "jobs file $rel passes crab validate ($count config(s))"
 }
 
