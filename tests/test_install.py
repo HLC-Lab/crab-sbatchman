@@ -1180,8 +1180,8 @@ def assert_nothing_slow_ran(tmp_path: Path, root: Path) -> None:
 
 def test_an_account_not_among_the_slurm_associations_stops_before_any_slow_step(tmp_path):
     root = make_umbrella(tmp_path)
-    # Whole-line, case-sensitive match: neither a longer name, a prefix nor another case counts.
-    stubs = sacctmgr_stub(tmp_path, ["proj2", "xproj", "PROJ", "other"])
+    # Whole-line match: neither a longer name nor a prefix counts.
+    stubs = sacctmgr_stub(tmp_path, ["proj2", "xproj", "other"])
     before = listing(root)
     result = run_install(
         root, "--account", "proj", path_prefix=stubs, env_extra={"USER": "alice"}
@@ -1195,6 +1195,17 @@ def test_an_account_not_among_the_slurm_associations_stops_before_any_slow_step(
     assert not (root / "site" / "local.env").exists()
     assert listing(root) == before
     assert "+ " not in result.stdout
+
+
+def test_the_account_check_ignores_the_case_of_the_name(tmp_path):
+    root = make_umbrella(tmp_path)
+    # Slurm accepts the account in any case and sacctmgr can list it in another one.
+    stubs = sacctmgr_stub(tmp_path, ["other", "ProJ"])
+    result = run_install(
+        root, "--account", "pRoj", path_prefix=stubs, env_extra={"USER": "alice"}
+    )
+    assert result.returncode == 0, result.stderr
+    assert "is not among the Slurm accounts" not in result.stderr
 
 
 def test_an_account_among_the_slurm_associations_installs_as_before(tmp_path):

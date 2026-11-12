@@ -221,11 +221,12 @@ if [[ "$ROLE" == cluster ]]; then
     }
 
     # check_slurm_account NAME: NAME must be one of the user's Slurm associations (one lookup,
-    # whole-line match, case-sensitive). No sacctmgr, or a lookup that cannot answer (non-zero
+    # whole-line match, case-insensitive: Slurm takes the account in any case, and sacctmgr may list
+    # it in another case than the one the site prints). No sacctmgr, or a lookup that cannot answer (non-zero
     # exit, empty output: accounting unreachable), is a note and the run goes on; a lookup that
     # answers without NAME stops the run.
     check_slurm_account() {
-        local name="$1" user out line
+        local name="$1" user out line want
         if [[ $SKIP_ACCOUNT_CHECK -eq 1 ]]; then
             echo "install.sh: note: the account $name was not checked against Slurm (--skip-account-check)" >&2
             return 0
@@ -239,8 +240,10 @@ if [[ "$ROLE" == cluster ]]; then
             echo "install.sh: note: sacctmgr gave no answer, so the account $name was not checked against Slurm." >&2
             return 0
         fi
+        want="$(printf '%s' "$name" | tr '[:upper:]' '[:lower:]')"
         while IFS= read -r line || [[ -n "$line" ]]; do
-            [[ "$line" == "$name" ]] && return 0
+            line="$(printf '%s' "$line" | tr '[:upper:]' '[:lower:]')"
+            [[ "$line" == "$want" ]] && return 0
         done <<<"$out"
         echo "install.sh: the account $name is not among the Slurm accounts of user $user (sacctmgr). Pass the right one with --account NAME, or --skip-account-check to skip this lookup." >&2
         exit 1
