@@ -552,3 +552,28 @@ def test_releasing_names_the_pin_chain_and_stays_short():
 
 def test_contributing_points_to_releasing_for_the_pin():
     assert "RELEASING.md" in (ROOT / "CONTRIBUTING.md").read_text()
+
+
+MAINTAINER_DOCS = [ROOT / "CONTRIBUTING.md", ROOT / "RELEASING.md"]
+
+
+def test_the_maintainer_docs_follow_the_writing_rules():
+    for path in MAINTAINER_DOCS:
+        text = path.read_text()
+        assert dash_problems(text) == [], path.name
+        assert prose_problems(text) == [], path.name
+        assert bold_lead_problems(text) == [], path.name
+        assert prompt_problems(text) == [], path.name
+        assert heading_problems(text) == [], path.name
+        assert link_problems(text, path.parent) == [], path.name
+        assert _h1_count(text) == 1, path.name
+        assert leftover_problems(text) == [], path.name
+
+
+def test_the_maintainer_docs_name_no_personal_word_or_forbidden_project_word():
+    words = forbidden_or_skip()
+    for path in MAINTAINER_DOCS:
+        text = path.read_text()
+        for word in (*words, *FORBIDDEN):
+            assert word not in text, f"{word!r} in {path.name}"
+        assert not FORBIDDEN_URL.search(text), path.name
