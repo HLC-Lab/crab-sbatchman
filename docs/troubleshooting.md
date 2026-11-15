@@ -37,7 +37,7 @@ The installer found no account and has no terminal to ask on. Pass it (the insta
 install.sh: the account <YOUR_ACCOUNT> is not among the Slurm accounts of user <your-user> (sacctmgr). Pass the right one with --account NAME, or --skip-account-check to skip this lookup.
 ```
 
-`sacctmgr` answered, and the name you gave is not one of your Slurm accounts. The installer stops before it installs anything. Run it again with an account you have:
+`sacctmgr` answered, and the name you gave is not one of your Slurm accounts (the comparison ignores case). The installer stops before it installs anything. Run it again with an account you have:
 
 ```bash
 ./install.sh --account <YOUR_ACCOUNT>
@@ -274,3 +274,7 @@ The job ended, but its `data_app_0.csv` has no rows, so the plots stay empty. A 
 ### `sbatchman visualize` runs out of memory or is slow with many jobs
 
 `sbatchman visualize` keeps every parsed row in memory while it builds its database. That costs about 2 KB per row at the peak, so 500000 rows need about 1 GB. Start it from a benchmark folder with fewer jobs, or on a machine with more memory.
+
+### `sbatchman fetch` takes minutes
+
+The first fetch of 100000 small files and 600 MB took about 7 minutes from a laptop to a login node. A repeat with nothing new took about 1 minute. Later fetches send only the new files.
