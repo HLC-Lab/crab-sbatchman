@@ -98,17 +98,17 @@ cd benchmarks/<benchmark> && sbatchman launch -f <job>.yaml --dry-run
 
 ## Write it in the dashboard
 
-The dashboard writes the jobs file for you. It stages the file on the cluster and does not launch it.
+The dashboard writes the jobs file into a benchmark folder of the umbrella on the cluster, and keeps a copy on your laptop. It does not launch the jobs.
 
 1. Connect the cluster as in [Install](install.md#connect-your-cluster-in-crab-web), then open **SbatchMan**.
-2. Type a name in **Campaign name**. It names the file.
-3. In **Group**, fill **Tag**, **SbatchMan preset** (the config name, such as `crab_run_{nodes}`), **Nodes** and **Processes per node**.
-4. In **Variables**, press **+ Add variable**. Give a name and comma-separated values.
-5. In **Experiment**, press **+ Add app**, pick a wrapper and write its args. Press **+** in the group list for another group.
-6. Pick the cluster under **Write to cluster**. If a problem count shows next to **Write files**, press it to see what blocks the write.
-7. Press **Write files**. The dashboard shows the path on the cluster and a local copy.
-8. On the cluster, in the folder where you cloned the umbrella, copy the file from `CRAB/.web_staging/` into `benchmarks/<benchmark>`. Its name is the campaign name in lower case.
-9. Add the line `configs: ../../.local/configs.leonardo.yaml` at the top of the copy. The dashboard does not write it.
-10. Run `./install.sh`, then the `--dry-run` command of [Write the jobs file by hand](#write-the-jobs-file-by-hand).
+2. Type the campaign name in the field next to **Save**. The file is that name in lower case with dashes, such as `myapp-scaling.yaml`.
+3. Under **Write to cluster**, pick the cluster. In **Benchmark folder**, pick a folder of `benchmarks/`, or type a new name to make one. Empty uses the first folder.
+4. In **Group**, fill **Tag**, **SbatchMan config**, **Nodes** and **Processes per node**. **SbatchMan config** suggests the names in `.local/configs.<cluster>.yaml`.
+5. Under **Variables**, press **+ Add variable**. Give a name and comma-separated values.
+6. Under **Experiment**, press **+ Add app**, then **Choose wrapper…**, pick a wrapper and write its args. **+ Add attribute** sets a key the wrapper reads. Press **+** beside **Groups** for another group.
+7. Press **Write files**. If a problem count shows beside it, press the count to see what blocks the write. The page then shows the path it wrote.
+8. If the page says `New folder`, run `./install.sh` on the cluster. It runs `sbatchman init` there and checks the file. Then run the `--dry-run` command of [Write the jobs file by hand](#write-the-jobs-file-by-hand) in `benchmarks/<benchmark>`.
+
+The file starts with `configs: ../../.local/configs.<cluster>.yaml`. Fill **Configs file** under **Campaign settings** only to name another configs file. A group with a shell variable such as `$CRAB_ROOT` in a wrapper attribute gets an unquoted `<<JSON` heredoc, so the shell expands it.
 
 Next: [Launch](launch.md).
