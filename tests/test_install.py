@@ -148,6 +148,10 @@ if [ "$1" = validate ]; then
   mkdir -p "@LOG@/validated"
   cp "$2" "@LOG@/validated/$(basename "$2")"
   echo "$CRAB_PATH_WRAPPERS" > "@LOG@/validate-wrappers"
+  if [ -n "$STUB_VALIDATE_HANG" ]; then
+    echo "hanging" > "$STUB_VALIDATE_HANG"
+    sleep 30
+  fi
   if [ -n "$STUB_VALIDATE_FAIL" ]; then
     case "$2" in
       *"$STUB_VALIDATE_FAIL"*)
@@ -651,21 +655,25 @@ def test_the_temporary_directory_is_gone_after_a_failing_check(tmp_path):
     assert temp_check_dirs(temp) == []
 
 
-def test_the_temporary_directory_is_gone_after_the_script_is_interrupted(tmp_path):
+def interrupt_while_hanging(tmp_path: Path, hang_variable: str, folder_prefix: str) -> Path:
+    """Runs install.sh until a stub hangs (the stub writes the marker named by `hang_variable`), checks
+    that a temporary folder with `folder_prefix` exists, sends SIGTERM to the run, returns TMPDIR."""
     root = make_umbrella(tmp_path)
     temp = tmp_path / "temp"
     temp.mkdir()
     hang = tmp_path / "hang-marker"
     env = dict(os.environ)
     env.pop("PYTHONPATH", None)
-    env.update({"TMPDIR": str(temp), "STUB_LAUNCH_HANG": str(hang)})
+    env.update({"TMPDIR": str(temp), hang_variable: str(hang)})
     env["PATH"] = os.pathsep.join(
         d for d in env["PATH"].split(os.pathsep) if not os.access(Path(d) / "sacctmgr", os.X_OK)
     )
     for name in ("SLURM_ACCOUNT", "SBATCHMAN_VERSION", "PIP_NO_INDEX", "PIP_FIND_LINKS", "WHEELHOUSE"):
         env.pop(name, None)
+    bash = os.environ.get("UMBRELLA_TEST_BASH")
+    command = [bash, str(root / "install.sh")] if bash else [str(root / "install.sh")]
     proc = subprocess.Popen(
-        [str(root / "install.sh"), "--account", "TESTACCT"],
+        [*command, "--account", "TESTACCT"],
         cwd=root.parent,
         env=env,
         stdin=subprocess.DEVNULL,
@@ -679,8 +687,8 @@ def test_the_temporary_directory_is_gone_after_the_script_is_interrupted(tmp_pat
             if hang.exists():
                 break
             time.sleep(0.1)
-        assert hang.exists(), "the stub launch never started"
-        assert temp_check_dirs(temp) != []
+        assert hang.exists(), "the stub never started"
+        assert [name for name in temp_check_dirs(temp) if name.startswith(folder_prefix)] != []
         # The process group is the one this test just started (start_new_session).
         os.killpg(proc.pid, signal.SIGTERM)
         proc.communicate(timeout=30)
@@ -688,6 +696,16 @@ def test_the_temporary_directory_is_gone_after_the_script_is_interrupted(tmp_pat
         if proc.poll() is None:
             os.killpg(proc.pid, signal.SIGKILL)
             proc.communicate()
+    return temp
+
+
+def test_the_temporary_directory_is_gone_after_the_script_is_interrupted(tmp_path):
+    temp = interrupt_while_hanging(tmp_path, "STUB_LAUNCH_HANG", "crab-umbrella-check.")
+    assert temp_check_dirs(temp) == []
+
+
+def test_the_jobs_check_folder_has_a_template_and_is_gone_after_an_interrupt(tmp_path):
+    temp = interrupt_while_hanging(tmp_path, "STUB_VALIDATE_HANG", "crab-umbrella-check-jobs.")
     assert temp_check_dirs(temp) == []
 
 

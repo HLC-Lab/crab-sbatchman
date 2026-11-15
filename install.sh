@@ -493,13 +493,30 @@ check_jobs_file() {
 # The dry-run launch writes into the SbatchMan project it finds (the configs of the cluster and
 # its cache), so it runs in a throw-away copy: the benchmark's real project stays as it is.
 CHECK_TMP=""
+# The folder the jobs-file checks write into.
+CHECK_JOBS_TMP=""
 
-# Removes the copy: exactly the folder mktemp made, never an empty name.
+# Removes both folders: exactly what mktemp made, never an empty name.
 check_cleanup() {
     if [[ -n "$CHECK_TMP" ]]; then
         rm -rf "$CHECK_TMP"
     fi
     CHECK_TMP=""
+    if [[ -n "$CHECK_JOBS_TMP" ]]; then
+        rm -rf "$CHECK_JOBS_TMP"
+    fi
+    CHECK_JOBS_TMP=""
+}
+
+# Removes the folders when the script ends or is interrupted, and ends the interrupted run.
+check_traps_on() {
+    trap check_cleanup EXIT
+    trap 'exit 130' INT
+    trap 'exit 143' TERM
+}
+
+check_traps_off() {
+    trap - EXIT INT TERM
 }
 
 # dry_run_launch_in_copy: runs `sbatchman init` and `sbatchman launch -f smoke.yaml --dry-run` in a
@@ -509,9 +526,7 @@ check_cleanup() {
 dry_run_launch_in_copy() {
     local copy status=0
     LAUNCH_OUT=""
-    trap check_cleanup EXIT
-    trap 'exit 130' INT
-    trap 'exit 143' TERM
+    check_traps_on
     if ! CHECK_TMP="$(mktemp -d "${TMPDIR:-/tmp}/crab-umbrella-check.XXXXXX")"; then
         CHECK_TMP=""
         LAUNCH_OUT="cannot create a temporary folder under ${TMPDIR:-/tmp}"
@@ -535,12 +550,12 @@ dry_run_launch_in_copy() {
         fi
     fi
     check_cleanup
-    trap - EXIT INT TERM
+    check_traps_off
     return "$status"
 }
 
 check_install() {
-    local file rel out found resolved tool problem dir workdir n=0
+    local file rel out found resolved tool problem dir n=0
     echo
     if [[ $DRY_RUN -eq 1 ]]; then
         echo "would check: python 3.10 or newer in the venv"
@@ -605,13 +620,19 @@ check_install() {
     fi
 
     # d. Every shipped jobs file: its embedded configs pass `crab validate`.
-    workdir="$(mktemp -d)"
-    for file in "$ROOT"/benchmarks/*/*.yaml; do
-        [[ -f "$file" ]] || continue
-        n=$((n + 1))
-        check_jobs_file "$file" "$workdir/$n"
-    done
-    rm -rf "$workdir"
+    check_traps_on
+    if ! CHECK_JOBS_TMP="$(mktemp -d "${TMPDIR:-/tmp}/crab-umbrella-check-jobs.XXXXXX")"; then
+        CHECK_JOBS_TMP=""
+        check_fail "jobs files" "cannot create a temporary folder under ${TMPDIR:-/tmp}"
+    else
+        for file in "$ROOT"/benchmarks/*/*.yaml; do
+            [[ -f "$file" ]] || continue
+            n=$((n + 1))
+            check_jobs_file "$file" "$CHECK_JOBS_TMP/$n"
+        done
+    fi
+    check_cleanup
+    check_traps_off
 
     # e. Cluster only: SbatchMan reads the smoke file and lists its jobs; nothing is submitted.
     if [[ "$ROLE" == cluster ]]; then
