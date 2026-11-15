@@ -257,6 +257,12 @@ sbatchman status
 cd benchmarks/<benchmark>
 ```
 
+A folder you made yourself has no `parser.py` yet. Link the shared one into it:
+
+```bash
+ln -s ../parser.py parser.py
+```
+
 ### "✗ ? failed (rsync exit N)"
 
 `sbatchman fetch` prints this for a `[[clusters.fetch_dirs]]` block without an `alias`, so the name shows as `?`. rsync prints its reason in the lines before it. Check that `ssh <your-user>@<login-host>` works from the same shell and that `remote` is a folder that exists on the cluster. Login nodes rotate, and a node that answers with a new host key stops the fetch the same way.

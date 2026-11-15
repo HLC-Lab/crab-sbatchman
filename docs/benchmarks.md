@@ -88,6 +88,13 @@ You need the application's binary on the cluster and a real output of one run of
 
    `binary missing` means no receipt, `binary` key or `PATH` entry matches. Then run `crab list-benchmarks`: it lists `myapp  (binary)`.
 
+5. Give the benchmark folder a `parser.py`. `sbatchman visualize` reads `./parser.py` of the folder you start it from.
+
+   ```bash
+   mkdir -p benchmarks/<benchmark>
+   ln -s ../parser.py benchmarks/<benchmark>/parser.py
+   ```
+
 To share the wrapper, send the wrapper folder with the real sample as a pull request to [crab-wrappers](https://github.com/HLC-Lab/crab-wrappers).
 
 ### Apps built with different module stacks
