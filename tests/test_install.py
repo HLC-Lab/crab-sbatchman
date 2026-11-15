@@ -223,8 +223,11 @@ def run_install(
     if path_prefix is not None:
         env["PATH"] = f"{path_prefix}{os.pathsep}{env['PATH']}"
     env.update(env_extra or {})
+    # UMBRELLA_TEST_BASH=/bin/bash starts install.sh under that bash (the macOS CI job uses bash 3.2).
+    bash = os.environ.get("UMBRELLA_TEST_BASH")
+    command = [bash, str(root / "install.sh")] if bash else [str(root / "install.sh")]
     return subprocess.run(
-        [str(root / "install.sh"), *args],
+        [*command, *args],
         cwd=root.parent,
         env=env,
         stdin=subprocess.DEVNULL,
