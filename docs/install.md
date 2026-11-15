@@ -60,12 +60,12 @@ source env.sh
    | Auth | agent (ssh-agent or certificate) |
    | Host key | insecure (login nodes rotate) |
    | Install dir | `<umbrella-dir>`, the folder where you cloned the umbrella on the cluster |
-   | Crab command, Preset | Empty |
+   | Crab command | Empty |
 
 ![The Add cluster form filled in, before Save](img/add-cluster.png)
 
 Do not press **Install CRAB** for this cluster: the umbrella already installed it.
-If a profile with the same name exists, the dashboard saves the new one with a 2 added to the name.
+If a profile with that name exists, the form says so under Name and Save stays off: pick another name.
 
 ## Update
 
