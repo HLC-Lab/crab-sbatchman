@@ -66,4 +66,4 @@ The output ends with `passed`. The submodules must be checked out: run `git subm
 
 ## Change the pinned versions
 
-The submodules point at fixed CRAB and crab-wrappers versions. Do not change them in a pull request. The maintainer updates them.
+The submodules point at fixed CRAB and crab-wrappers versions. Do not change them in a pull request. The maintainer updates them, as [RELEASING.md](RELEASING.md) describes.

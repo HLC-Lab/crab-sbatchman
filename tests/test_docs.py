@@ -72,7 +72,7 @@ LEFTOVER_RE = re.compile(r"<umbrella-url>|working\s+title|\bTODO\b", re.IGNORECA
 PATH_PREFIXES = ("benchmarks/", "docs/", "configs/", "tests/", "CRAB/", "crab-wrappers/")
 
 # The top-level tracked names that the docs need not name.
-TOP_LEVEL_SKIP = {"tests", ".gitignore", ".gitmodules", "README.md", "pytest.ini", "LICENSE", "CONTRIBUTING.md", ".github"}
+TOP_LEVEL_SKIP = {"tests", ".gitignore", ".gitmodules", "README.md", "pytest.ini", "LICENSE", "CONTRIBUTING.md", "RELEASING.md", ".github"}
 
 
 def _allowed_missing_path(token: str) -> bool:
@@ -537,3 +537,18 @@ def test_the_page_caps_hold_and_never_loosen():
         "reference": 300,
     }
     assert set(PAGE_CAPS) == set(PAGES)
+
+
+def test_releasing_names_the_pin_chain_and_stays_short():
+    path = ROOT / "RELEASING.md"
+    assert path.is_file()
+    text = path.read_text()
+    assert len(text.splitlines()) <= 45
+    for needle in ("+sbatchman", "crab-wrappers", "tests/test_layout.py", "git submodule"):
+        assert needle in text, needle
+    # The maintainer's private tooling is never named in a public file.
+    assert ".crab-web-dev" not in text and ".claude" not in text
+
+
+def test_contributing_points_to_releasing_for_the_pin():
+    assert "RELEASING.md" in (ROOT / "CONTRIBUTING.md").read_text()
