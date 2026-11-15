@@ -9,7 +9,7 @@ Messages are quoted as the program prints them. Where a message holds a version 
 ### "python3 is Python 3.6.8: 3.10 or newer is needed"
 
 ```text
-python3 is Python 3.6.8: 3.10 or newer is needed. On a cluster run 'module load python' first, then run install.sh again.
+python3 is Python 3.6.8: 3.10 or newer is needed. On a cluster run 'module load python' first. On a Mac install Python 3.10 or newer from python.org or Homebrew and put it first on PATH. Then run install.sh again.
 ```
 
 The login node's default Python is too old. Load a newer one and run the installer again:

@@ -343,6 +343,10 @@ def test_old_python_stops_before_changing_anything(tmp_path):
     assert result.returncode == 1
     assert "module load python" in result.stderr
     assert "Python 3.6.8" in result.stderr
+    assert (
+        "On a Mac install Python 3.10 or newer from python.org or Homebrew and put it first on PATH"
+        in result.stderr
+    )
     assert listing(root) == before
 
 

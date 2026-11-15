@@ -3,7 +3,7 @@
 ## Before you start
 
 - A login on Leonardo. The shipped Slurm configuration is for that cluster.
-- Python 3.10 or newer. On a cluster this is a module, such as `module load python`.
+- Python 3.10 or newer. On a cluster this is a module, such as `module load python`. On a Mac, install it from python.org or Homebrew.
 - git.
 - A Slurm account you can charge.
 

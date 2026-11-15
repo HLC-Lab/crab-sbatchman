@@ -175,7 +175,7 @@ unset PYTHONPATH PYTHONHOME
 # 1. Python 3.10 or newer, before anything is created.
 if ! python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)' 2>/dev/null; then
     found="$(python3 --version 2>&1 || echo 'not found')"
-    echo "python3 is ${found}: 3.10 or newer is needed. On a cluster run 'module load python' first, then run install.sh again." >&2
+    echo "python3 is ${found}: 3.10 or newer is needed. On a cluster run 'module load python' first. On a Mac install Python 3.10 or newer from python.org or Homebrew and put it first on PATH. Then run install.sh again." >&2
     exit 1
 fi
 
