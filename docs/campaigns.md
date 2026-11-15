@@ -109,6 +109,10 @@ The dashboard writes the jobs file into a benchmark folder of the umbrella on th
 7. Press **Write files**. If a problem count shows beside it, press the count to see what blocks the write. The page then shows the path it wrote.
 8. If the page says `New folder`, run `./install.sh` on the cluster. It runs `sbatchman init` there and checks the file. Then run the `--dry-run` command of [Write the jobs file by hand](#write-the-jobs-file-by-hand) in `benchmarks/<benchmark>`.
 
+![The SbatchMan page with a campaign ready to write](img/dashboard-campaign.png)
+
+![The write panel and the notice after a write into a new folder](img/dashboard-written.png)
+
 The file starts with `configs: ../../.local/configs.<cluster>.yaml`. Fill **Configs file** under **Campaign settings** only to name another configs file. A group with a shell variable such as `$CRAB_ROOT` in a wrapper attribute gets an unquoted `<<JSON` heredoc, so the shell expands it.
 
 Next: [Launch](launch.md).
