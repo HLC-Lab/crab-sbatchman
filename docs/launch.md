@@ -15,7 +15,7 @@ Submit the jobs of a benchmark, follow them in the queue and run them again afte
    sbatchman launch -f smoke.yaml --dry-run
    ```
 
-   The command prints a `Would generate` line for each job.
+   The command prints a `Would generate` line for each job. It then also prints `Submitted successfully 1 jobs.`, which is wrong: nothing is submitted. Confirm it with `squeue --me`.
 
 2. Launch them.
 
