@@ -1,0 +1,76 @@
+name: macos
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - install.sh
+      - tests/test_bash32.py
+      - tests/test_install.py
+      - tests/test_laptop.py
+      - tests/test_env.py
+      - CRAB
+      - crab-wrappers
+      - .github/workflows/macos.yml
+  pull_request:
+    paths:
+      - install.sh
+      - tests/test_bash32.py
+      - tests/test_install.py
+      - tests/test_laptop.py
+      - tests/test_env.py
+      - CRAB
+      - crab-wrappers
+      - .github/workflows/macos.yml
+  workflow_dispatch:
+
+concurrency:
+  group: macos-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  laptop:
+    name: Laptop installer on macOS
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: The system bash is 3.2
+        run: |
+          /bin/bash --version | head -1
+          /bin/bash -c '[[ ${BASH_VERSINFO[0]} -eq 3 ]]'
+      - name: Install the test tools
+        run: pip install pytest pyyaml
+      - name: Installer tests under bash 3.2
+        run: |
+          UMBRELLA_TEST_BASH=/bin/bash python -m pytest -q \
+            tests/test_install.py tests/test_laptop.py tests/test_bash32.py tests/test_env.py
+      - name: The laptop installer and its self-check
+        run: |
+          /bin/bash ./install.sh --role laptop > install-1.log 2>&1 || { cat install-1.log; exit 1; }
+          cat install-1.log
+          grep -qx 'install.sh: all checks passed' install-1.log
+      - name: The laptop installer a second time
+        run: |
+          /bin/bash ./install.sh --role laptop > install-2.log 2>&1 || { cat install-2.log; exit 1; }
+          cat install-2.log
+          grep -qx 'install.sh: all checks passed' install-2.log
+      - name: env.sh under zsh puts crab in the venv
+        run: |
+          found="$(zsh -c '. ./env.sh && command -v crab')"
+          echo "$found"
+          case "$found" in
+            */CRAB/.venv/bin/crab) ;;
+            *) echo "crab resolves outside CRAB/.venv/bin"; exit 1 ;;
+          esac
+      - name: The rsync of this macOS takes the flags of sbatchman fetch
+        run: |
+          rsync --version | head -1
+          mkdir -p rsync-test/a rsync-test/b
+          echo data > rsync-test/a/file.txt
+          rsync -zvrh --update rsync-test/a/ rsync-test/b/
+          test -f rsync-test/b/file.txt

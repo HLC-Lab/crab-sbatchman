@@ -8,12 +8,10 @@ jobs:
   tests:
     name: ${{ matrix.os }}, Python ${{ matrix.python-version }}
     runs-on: ${{ matrix.os }}
-    # macOS ships bash 3.2 as /bin/bash; it stays non-blocking until it is checked on a real Mac.
-    continue-on-error: ${{ matrix.os == 'macos-latest' }}
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubuntu-latest]
         python-version: ["3.10", "3.12"]
     steps:
       - uses: actions/checkout@v4
