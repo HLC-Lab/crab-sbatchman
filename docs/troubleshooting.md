@@ -270,3 +270,7 @@ ln -s ../parser.py parser.py
 ### "parser: ...: file skipped (no data rows)"
 
 The job ended, but its `data_app_0.csv` has no rows, so the plots stay empty. A failed run does not fail the job. Read `bindings_app_0.log` and `error_app_0.log` in that experiment folder, and the job's `stderr.log`.
+
+### `sbatchman visualize` runs out of memory or is slow with many jobs
+
+`sbatchman visualize` keeps every parsed row in memory while it builds its database. That costs about 2 KB per row at the peak, so 500000 rows need about 1 GB. Start it from a benchmark folder with fewer jobs, or on a machine with more memory.
