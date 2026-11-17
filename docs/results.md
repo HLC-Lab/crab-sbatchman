@@ -6,7 +6,7 @@ Run these steps on your laptop, installed as in [Install](install.md#install-on-
 
 ## Fetch and plot
 
-1. Tell SbatchMan where the cluster is. Save this as `~/.config/sbatchman/remotes-config.toml`, or merge it by hand into the file if it exists.
+1. Tell SbatchMan where the cluster is. Save this as `remotes-config.toml` in the SbatchMan config folder, or merge it by hand into the file if it exists. The folder is `~/.config/sbatchman/` on Linux and `~/Library/Application Support/sbatchman/` on macOS.
 
    ```toml
    [global]
