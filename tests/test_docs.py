@@ -320,6 +320,13 @@ def _tracked_top_level() -> set[str]:
     return {line.split("/", 1)[0] for line in listing.splitlines() if line}
 
 
+def test_the_update_section_tells_a_laptop_to_keep_its_role():
+    # A bare ./install.sh runs the cluster role: on a laptop it asks for a Slurm account.
+    install = (DOCS / "install.md").read_text()
+    update = install.split("\n## Update", 1)[1]
+    assert "./install.sh --role laptop" in update
+
+
 def test_readme_is_short_has_one_h1_and_links_every_page():
     text = README.read_text()
     lines = len(text.splitlines())
