@@ -373,6 +373,16 @@ def test_no_forbidden_project_word_or_url():
         assert not FORBIDDEN_URL.search(text), path.name
 
 
+def test_the_add_cluster_example_checks_the_host_key_and_uses_the_form_labels():
+    install = (DOCS / "install.md").read_text()
+    assert "| Host key | strict" in install
+    assert "| Host key | insecure" not in install
+    assert "| Auth | agent (ssh-agent / cert) |" in install
+    # The one place that tells when `insecure` is acceptable also warns about `password`.
+    limits = (DOCS / "reference.md").read_text().split("## Known limits", 1)[1]
+    assert "`insecure`" in limits and "`password`" in limits
+
+
 def test_no_unfinished_marker_in_any_page():
     for path in _all_docs():
         assert leftover_problems(path.read_text()) == [], path.name

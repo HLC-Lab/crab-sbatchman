@@ -85,6 +85,7 @@ It ends by printing the paths of `crab` and `sbatchman`.
 ## Known limits
 
 - Login nodes can rotate. A fetch lands on whichever node answers.
+- The Add cluster form checks the host key against `~/.ssh/known_hosts` when Host key is `strict`: connect once with `ssh <login-host>` first. If the login nodes rotate and `strict` refuses the connection, choose `insecure`. It accepts any host key, so use it as a last resort and never with `password` auth.
 - `sbatchman visualize` listens on the fixed port 8765.
 - The umbrella pins CRAB and the wrappers to commits. `crab update` does not apply: it moves CRAB off the pinned commit.
 - A Python virtual environment is not relocatable. After you move the umbrella folder, run `./install.sh` again.
