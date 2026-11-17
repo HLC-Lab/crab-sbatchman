@@ -42,7 +42,7 @@ source env.sh
 
 ## Connect your cluster in crab web
 
-1. Start the dashboard from the shell that holds your ssh agent. It finds the agent through `SSH_AUTH_SOCK`.
+1. Start the dashboard on your laptop, not on the cluster, from the shell that holds your ssh agent. It finds the agent through `SSH_AUTH_SOCK`. Other users of a shared machine can reach the dashboard.
 
    ```bash
    crab web

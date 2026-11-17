@@ -394,6 +394,13 @@ def test_no_personal_word():
             assert word not in text, f"{word!r} in {path.name}"
 
 
+def test_the_connect_step_says_to_run_crab_web_on_the_laptop():
+    # Any other user of a shared machine can read the dashboard token over loopback.
+    install = (DOCS / "install.md").read_text()
+    step = install.split("## Connect your cluster in crab web", 1)[1].split("2. Open", 1)[0]
+    assert "on your laptop" in step and "not on the cluster" in step
+
+
 def test_every_top_level_tracked_path_is_named():
     named = set()
     for path in _all_docs():
