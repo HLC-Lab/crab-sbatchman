@@ -86,5 +86,5 @@ It ends by printing the paths of `crab` and `sbatchman`.
 
 - Login nodes can rotate. A fetch lands on whichever node answers.
 - `sbatchman visualize` listens on the fixed port 8765.
-- The umbrella pins CRAB and the wrappers to commits. `crab update` does not apply: it moves CRAB off the pinned commit.
+- The umbrella pins CRAB and the wrappers to commits. `crab update` does not apply: it stops with a message. Update the umbrella instead, as [Update](install.md#update) describes.
 - A Python virtual environment is not relocatable. After you move the umbrella folder, run `./install.sh` again.
