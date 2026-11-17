@@ -43,8 +43,10 @@ The tests in `tests/test_benchmarks.py` run `crab validate` on every combination
 A configs file describes one cluster: the Slurm partition, the quality of service, the modules and the `crab` paths.
 
 1. Copy `configs/leonardo.yaml` to `configs/<cluster>.yaml`.
-2. Keep the placeholders `<YOUR_ACCOUNT>`, `<VENV_DIR>`, `<CRAB_DIR>` and `<WRAPPERS_DIR>`. The installer fills them into `.local/`, which git ignores.
+2. Keep the placeholders `<YOUR_ACCOUNT>`, `<SLURM_PARTITION>`, `<SLURM_QOS>` and `<CRAB_DIR>`. The installer fills them into `.local/`, which git ignores. A token in capitals that is not on this list makes it stop.
 3. Copy `site/leonardo.env` to `site/<cluster>.env` and set the partition, the quality of service and the cluster name.
+
+Today `install.sh` reads only `configs/leonardo.yaml` and `site/leonardo.env`. The files for a second cluster are not read until the installer takes the cluster name as a variable.
 
 Never write a real account, user name or host name in a tracked file.
 
