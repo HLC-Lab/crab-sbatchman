@@ -7,6 +7,8 @@ import re
 import subprocess
 from pathlib import Path
 
+import pytest
+
 from forbidden import forbidden_or_skip
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -358,6 +360,41 @@ def test_the_reference_page_documents_every_install_flag():
 def test_repo_paths_in_code_exist():
     for path in _all_docs():
         assert path_problems(path.read_text()) == [], path.name
+
+
+CRAB_BLOB_RE = re.compile(r"^https://github\.com/HLC-Lab/CRAB/blob/([^/]+)/([^#]+)(?:#(.+))?$")
+SUBMODULE_LINK_RE = re.compile(r"^(?:\.\.?/)*(?:CRAB|crab-wrappers)/")
+
+
+def test_docs_link_into_the_submodules_by_absolute_url_not_by_path():
+    # github.com serves no folder below a submodule of this repository: such a link is a 404 there.
+    for path in _all_docs():
+        bad = [t for t in _link_targets(path.read_text()) if SUBMODULE_LINK_RE.match(t)]
+        assert bad == [], f"{path.name}: {bad}"
+
+
+def test_absolute_crab_links_name_a_file_and_heading_of_the_pinned_checkout():
+    crab = ROOT / "CRAB"
+    if not (crab / "Makefile").exists():
+        pytest.skip("the CRAB submodule is not checked out")
+    described = subprocess.run(
+        ["git", "-C", str(crab), "describe", "--tags", "--exact-match"], capture_output=True, text=True
+    )
+    pinned_tag = described.stdout.strip() if described.returncode == 0 else None
+    seen = 0
+    for path in _all_docs():
+        for target in _link_targets(path.read_text()):
+            match = CRAB_BLOB_RE.match(target)
+            if not match:
+                continue
+            seen += 1
+            tag, rel, anchor = match.groups()
+            if pinned_tag is not None:
+                assert tag == pinned_tag, f"{path.name}: {target} is not the pinned tag {pinned_tag}"
+            assert (crab / rel).is_file(), f"{path.name}: {target}: no such file in CRAB"
+            if anchor:
+                assert anchor in _slugs((crab / rel).read_text()), f"{path.name}: {target}: no such heading"
+    assert seen >= 2
 
 
 def test_only_allowed_placeholders():

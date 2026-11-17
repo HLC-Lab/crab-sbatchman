@@ -32,7 +32,7 @@ How the maintainer moves the pinned CRAB and crab-wrappers versions of this repo
    git submodule status
    ```
 
-2. Put the first 8 characters of the new CRAB commit into the pin assertion of `tests/test_layout.py`.
+2. Put the first 8 characters of the new CRAB commit into the pin assertion of `tests/test_layout.py`, and the new tag into the two CRAB links of `docs/benchmarks.md`.
 3. Run `python -m pytest -q` from the repository root, without a sandbox. It must end with `passed`.
 4. Commit `CRAB`, `crab-wrappers` and `tests/test_layout.py` as `chore: pin CRAB to vX.Y.Z+sbatchman`, then push.
 5. Wait for the `macos.yml` run that the push starts. If none started, run `gh workflow run macos.yml`.
