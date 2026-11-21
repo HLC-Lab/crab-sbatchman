@@ -345,6 +345,13 @@ def test_every_docs_page_exists_with_one_h1_and_a_size_cap():
         assert len(text.splitlines()) <= PAGE_CAPS[page.stem], page.name
 
 
+def test_the_results_page_names_the_sbatchman_config_folder_of_each_system():
+    # SbatchMan builds the folder with platformdirs: it differs on macOS.
+    results = (DOCS / "results.md").read_text()
+    assert "~/.config/sbatchman/" in results
+    assert "~/Library/Application Support/sbatchman/" in results
+
+
 def test_relative_links_resolve_and_anchors_match_a_heading():
     for path in _all_docs():
         assert link_problems(path.read_text(), path.parent) == [], path.name
