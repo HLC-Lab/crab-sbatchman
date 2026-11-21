@@ -41,3 +41,28 @@ jobs:
             --deselect tests/test_benchmarks.py::test_every_embedded_config_passes_crab_validation \
             --deselect tests/test_docs.py::test_relative_links_resolve_and_anchors_match_a_heading \
             --deselect tests/test_docs.py::test_repo_paths_in_code_exist
+
+  installer:
+    name: Cluster installer, Python ${{ matrix.python-version }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: The cluster installer and its self-check
+        run: |
+          ./install.sh --account ci --skip-account-check > install-1.log 2>&1 || { cat install-1.log; exit 1; }
+          cat install-1.log
+          grep -qx 'install.sh: all checks passed' install-1.log
+      - name: The cluster installer a second time
+        run: |
+          ./install.sh --account ci --skip-account-check > install-2.log 2>&1 || { cat install-2.log; exit 1; }
+          cat install-2.log
+          grep -qx 'install.sh: all checks passed' install-2.log
