@@ -75,4 +75,6 @@ git submodule update --init
 ./install.sh
 ```
 
+On a laptop, run `./install.sh --role laptop` instead: a bare `./install.sh` runs the cluster role.
+
 Do not run `crab update` in the umbrella: it pins CRAB and the wrappers to tested commits.
