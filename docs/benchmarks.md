@@ -40,7 +40,7 @@ You need the application's binary on the cluster and a real output of one run of
 
    This creates `myapp/myapp.py`, a README and a passing example in `local/wrappers/` of the `CRAB` folder. That folder is git-ignored and searched first, so `crab wrappers list` and `crab list-benchmarks` find the wrapper and the submodule stays clean. A job names it `myapp/myapp.py`. Without `--local`, the wrapper goes to `crab-wrappers/` and shows as untracked content of that submodule in `git status`.
 
-2. Write the parser against a real sample. [Writing a wrapper](https://github.com/HLC-Lab/CRAB/blob/v1.5.0+sbatchman/docs/extending/wrappers.md#the-contract) holds the full contract.
+2. Write the parser against a real sample. [Writing a wrapper](https://github.com/HLC-Lab/CRAB/blob/v1.5.1+sbatchman/docs/extending/wrappers.md#the-contract) holds the full contract.
 
    Edit `metadata` and `read_data()` in `myapp.py`:
 
@@ -105,6 +105,6 @@ When two apps with different module stacks share one job, the second app inherit
 crab receipts set myapp --binary /path/to/myapp --pre-run "module purge" --pre-run "module load openmpi"
 ```
 
-The symptom of a missing `module purge` is `symbol lookup error` in the app's log. [Apps built with different module stacks](https://github.com/HLC-Lab/CRAB/blob/v1.5.0+sbatchman/docs/using/sbatchman-integration.md#apps-built-with-different-module-stacks) explains the cause.
+The symptom of a missing `module purge` is `symbol lookup error` in the app's log. [Apps built with different module stacks](https://github.com/HLC-Lab/CRAB/blob/v1.5.1+sbatchman/docs/using/sbatchman-integration.md#apps-built-with-different-module-stacks) explains the cause.
 
 Next: [Write a campaign](campaigns.md).

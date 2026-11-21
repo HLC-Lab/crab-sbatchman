@@ -44,7 +44,7 @@ def test_submodules_are_gitlinks_and_crab_is_pinned():
         gitlinks[path] = (mode, commit)
     assert gitlinks["CRAB"][0] == "160000"
     assert gitlinks["crab-wrappers"][0] == "160000"
-    assert gitlinks["CRAB"][1].startswith("8843efb9")
+    assert gitlinks["CRAB"][1].startswith("5e3d855a")
 
 
 def test_tracked_folders_exist_and_site_file_has_placeholder():
