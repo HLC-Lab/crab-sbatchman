@@ -364,6 +364,16 @@ def test_every_install_flag_named_in_the_docs_exists():
         assert flag_problems(path.read_text(), flags) == [], path.name
 
 
+def test_contributing_lists_the_tokens_that_install_sh_fills():
+    # A configs template with any other <TOKEN> makes install.sh stop on "unfilled tokens".
+    script = (ROOT / "install.sh").read_text()
+    tokens = set(re.findall(r"token_\w+='(<[A-Z_]+>)'", script))
+    assert len(tokens) == 4, tokens
+    contributing = (ROOT / "CONTRIBUTING.md").read_text()
+    section = contributing.split("## Add a configs file", 1)[1].split("\n## ", 1)[0]
+    assert set(re.findall(r"<[A-Z_]+>", section)) == tokens
+
+
 def test_the_reference_page_documents_every_install_flag():
     flags = install_flags()
     assert undocumented_flags((DOCS / "reference.md").read_text(), flags) == []
