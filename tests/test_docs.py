@@ -521,6 +521,14 @@ def test_the_guards_catch_what_they_should(tmp_path):
     assert _h1_count("# One\n```\n# not a heading\n```\n# Two\n") == 2
 
 
+def test_the_reference_says_crab_update_stops_in_the_umbrella():
+    # CRAB 1.5.0 refuses inside a superproject; it does not move CRAB off the pin.
+    limits = (DOCS / "reference.md").read_text().split("## Known limits", 1)[1]
+    assert "crab update" in limits
+    assert "moves CRAB off the pinned commit" not in limits
+    assert "stops" in limits
+
+
 def test_no_em_or_en_dash():
     for path in _all_docs():
         assert dash_problems(path.read_text()) == [], path.name
