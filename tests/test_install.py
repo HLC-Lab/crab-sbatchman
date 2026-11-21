@@ -1382,3 +1382,14 @@ def test_the_laptop_role_never_asks_slurm_and_needs_no_account(tmp_path):
     skipped = run_install(root, "--role", "laptop", "--skip-account-check", path_prefix=stubs)
     assert skipped.returncode == 0, skipped.stderr
     assert not (tmp_path / "sacctmgr.log").exists()
+
+
+def test_the_default_offline_wheel_folder_is_git_ignored():
+    """`install.sh --offline` reads `.wheelhouse` in the clone by default; hundreds of wheels
+    there must not show up in `git status` or a careless `git add -A`."""
+    result = subprocess.run(
+        ["git", "check-ignore", "-q", ".wheelhouse/example-1.0-py3-none-any.whl"],
+        cwd=REPO,
+        check=False,
+    )
+    assert result.returncode == 0
