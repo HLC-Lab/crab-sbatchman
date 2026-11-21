@@ -57,8 +57,8 @@ source env.sh
    | Transport | `ssh` |
    | Host, User | `<login-host>`, `<your-user>` |
    | Port | `22` |
-   | Auth | agent (ssh-agent or certificate) |
-   | Host key | insecure (login nodes rotate) |
+   | Auth | agent (ssh-agent / cert) |
+   | Host key | strict (for rotating login nodes, see [Known limits](reference.md#known-limits)) |
    | Install dir | `<umbrella-dir>`, the folder where you cloned the umbrella on the cluster |
    | Crab command | Empty |
 
