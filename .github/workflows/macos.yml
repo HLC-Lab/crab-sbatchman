@@ -28,6 +28,9 @@ concurrency:
   group: macos-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
   laptop:
     name: Laptop installer on macOS
