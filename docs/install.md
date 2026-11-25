@@ -4,7 +4,7 @@ Install the umbrella twice: on the cluster login node, where the jobs run, and o
 
 ## Before you start
 
-- A login on Leonardo. The shipped Slurm configuration is for that cluster.
+- A login on a Slurm cluster: Leonardo, or any other. The shipped configuration is Leonardo's; for another cluster, see [Another cluster](presets.md#another-cluster).
 - A Slurm account you can charge.
 - A laptop that can ssh to the login node.
 - Python 3.11 or newer on both. On a cluster this is a module, such as `module load python`. On a Mac, install it from python.org or Homebrew.
@@ -27,7 +27,7 @@ module load python
 source env.sh
 ```
 
-Replace `<YOUR_ACCOUNT>` with the Slurm account to charge.
+Replace `<YOUR_ACCOUNT>` with the Slurm account to charge. On a cluster other than Leonardo, run the first three lines of the block, then follow [Another cluster](presets.md#another-cluster) in place of the last two: it sets your cluster's name, partition and QOS before `./install.sh` runs.
 
 The installer checks the account first, with `sacctmgr` when it is on `PATH`. Add `--skip-account-check` if the lookup is wrong for your site. The installer saves the account, so later runs need no `--account`. Run `source env.sh` in every new shell. Add `--dry-run` to print the commands without running them.
 
@@ -59,5 +59,7 @@ git submodule update --init
 ```
 
 On a laptop, run `./install.sh --role laptop` instead: a bare `./install.sh` runs the cluster role.
+
+If you edited `configs/leonardo.yaml` for another cluster, `git pull` can stop on that file: [Configs file](presets.md) gives the steps.
 
 Do not run `crab update` in the umbrella: it pins CRAB and the wrappers to tested commits.

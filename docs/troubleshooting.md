@@ -222,11 +222,13 @@ Then launch again with `--force`, because the failed job counts as an existing o
 
 ### "SbatchMan root not found"
 
-The message goes on with `run 'sbatchman init'`. The command ran outside a benchmark folder. Go into one:
+The message goes on with `run 'sbatchman init'`. It has two causes. The first: the command ran outside a benchmark folder. Go into one:
 
 ```bash
 cd benchmarks/<benchmark>
 ```
+
+The second: the folder is new, and `./install.sh` has not turned it into a SbatchMan project yet. Run `./install.sh` on the cluster, then try again. [Check the file](campaigns.md#check-the-file) shows the check.
 
 ### A job shows FAILED or TIMEOUT in sbatchman status
 
@@ -234,6 +236,8 @@ Read `stderr.log` and `stdout.log` in the job folder, `SbatchMan/experiments/<cl
 
 `TIMEOUT` means Slurm stopped the job at its `time` limit, 30 minutes in `configs/leonardo.yaml`. Raise `time` there and run `./install.sh`.
 Then launch again with `--force`.
+
+`stdout.log` can end with `Experiment run failed: No binary for myapp (app 0). Tried: ...`: the wrapper found no binary ([Wrap and register your benchmark](benchmarks.md#register-the-binary) has the cases). When the receipt was saved with `--allow-missing` and its file does not exist, the text reads `receipt or wrapper default '/opt/myapp/bin/myapp' (does not exist)` where the case with no receipt reads `receipt 'myapp'`. Put the binary at that path, or save the receipt again with the right one. Then launch again with `--force`, because the failed job counts as an existing one.
 
 ## Results
 

@@ -8,7 +8,7 @@ The template is `configs/leonardo.yaml`. `./install.sh` fills its tokens and wri
 ./install.sh
 ```
 
-The template is a tracked file, so a plain `git pull` stops while it has edits. Run `git stash`, then `git pull`, then `git stash pop`, then `./install.sh`. If the pull changed the same lines, `git stash pop` reports a conflict and keeps the stash: fix the file by hand.
+The template is a tracked file. You need not commit your edit: the installer reads the working copy. A plain `git pull` stops with an error that starts `error: Your local changes` when the update changes this file, and goes ahead when it does not. When it stops, run `git stash`, then `git pull`, then `git stash pop`, then `./install.sh`. If the pull changed the same lines, `git stash pop` reports a conflict and keeps the stash: fix the file by hand. If you did commit the edit, a plain `git pull` stops with a recent git, with `Need to specify how to reconcile divergent branches`, once the update has new commits: run `git config pull.rebase false` once (it means merge instead of rebase), then `git pull`, and fix the file by hand if it reports a conflict.
 
 ## Layout of the file
 
@@ -86,11 +86,11 @@ Every `nodes` value a job uses must be in the `nodes` list under `variables`.
 
 ## Another cluster
 
-The installer reads `configs/leonardo.yaml` and `site/leonardo.env` by name, plus your `site/local.env`, and writes `.local/configs.leonardo.yaml`. A file named `configs/<cluster>.yaml` is not read. For another Slurm cluster, keep these names and change what is inside the files.
+The installer reads `configs/leonardo.yaml` and `site/leonardo.env` by name, plus your `site/local.env`, and writes `.local/configs.leonardo.yaml`. A file named `configs/<cluster>.yaml` is not read. For another Slurm cluster, keep these names, `leonardo` included, and change what is inside the files.
 
 Run these steps on the cluster login node, in the umbrella clone there. Never run a bare `./install.sh` on your laptop: it installs the cluster role, writes `site/local.env` and `.local/configs.leonardo.yaml`, and rewrites `env.sh` (the line that sets `CRAB_WEB_PORT` goes, `SBATCHMAN_CLUSTER_NAME` is added). On a laptop run `./install.sh --role laptop`, which writes `env.sh` back.
 
-1. Add the settings of your cluster to `site/local.env`. The name takes letters, digits, `_`, `.` and `-`.
+1. Create `site/local.env` (the clone has none, and Git ignores it) and put the settings of your cluster in it. If an earlier `./install.sh --account` made the file, edit its lines. The name takes letters, digits, `_`, `.` and `-`.
 
    ```bash
    SBATCHMAN_CLUSTER_NAME="mycluster"
@@ -103,14 +103,15 @@ Run these steps on the cluster login node, in the umbrella clone there. Never ru
 
 2. In `configs/leonardo.yaml`, rename the block `leonardo:` to the same name and change the lines listed here.
 3. Run `./install.sh`, then `source env.sh`. A good result is the line `OK sbatchman launch --dry-run on benchmarks/blink/smoke.yaml (submits nothing)`.
+4. Read the lines Slurm will get, as in step 4 of [Add your config](#add-your-config). In `benchmarks/blink`, run the dry run of [Launch the smoke test](launch.md#launch-the-smoke-test), then run `grep SBATCH SbatchMan/configs/<cluster>/crab_run_2.sh`. A good result holds your partition, account and QOS.
 
-The block name and `SBATCHMAN_CLUSTER_NAME` must be equal. If they differ, SbatchMan stops with `No configurations found for cluster`. The dashboard profile name and the `name` of the `[[clusters]]` block in `remotes-config.toml` are labels: the dashboard reads the first `.local/configs.*.yaml` whatever the profile is called, and `sbatchman fetch` takes its folders from `fetch_dirs`. Using the cluster name for both keeps one name to remember.
+The block name and `SBATCHMAN_CLUSTER_NAME` must be equal. If they differ, SbatchMan stops with `No configurations found for cluster`. The dashboard profile name and the `name` of the `[[clusters]]` block in `remotes-config.toml` are labels: the dashboard reads the first `.local/configs.*.yaml` in the profile's install dir on the cluster, over the connection (the laptop has no `.local/`), whatever the profile is called, and `sbatchman fetch` takes its folders from `fetch_dirs`. Using the cluster name for both keeps one name to remember.
 
 Lines that are Leonardo's and need your cluster's values:
 
 - The `modules` of `crab_run_{nodes}`: use modules your cluster has, with one that puts `mpirun` on `PATH`.
 - The `env` entries `CRAB_IB_DEVICES`, `UCX_IB_SL` and `NCCL_IB_SL` are Leonardo network settings: replace or delete them, and delete the comment line `# Leonardo network settings` with them. `CRAB_SYSTEM` is the label recorded with the results: rename it.
-- Comments that are true only on Leonardo, counting the lines of the unedited template: replace lines 1 and 2 (one sentence that names Leonardo and CINECA) with ``# Template of the SbatchMan configs file. Do not edit the filled copy: `./install.sh` fills this file into``, delete lines 16 and 17 (the one comment that begins `# The cluster block name below` and runs onto the next line), and delete the `boost_qos_dbg` remark at the end of the `qos:` line. Keep the `qos:` line itself.
+- Comments that are true only on Leonardo, counting the lines of the unedited template: replace lines 1 and 2 (one sentence that names Leonardo and CINECA) with two lines, ``# Template of the SbatchMan configs file.`` and ``# Do not edit the filled copy: `./install.sh` fills this file into``, which run on into line 3. In lines 10 and 11 change `site/leonardo.env` to `site/local.env`, which is where your partition and QOS come from. Delete lines 16 and 17 (the one comment that begins `# The cluster block name below` and runs onto the next line), and delete the `boost_qos_dbg` remark at the end of the `qos:` line. Keep the `qos:` line itself.
 - `time` and `tasks_per_node` in `default_conf`: check them against your site's limits, as in [Check the limits of your site](#check-the-limits-of-your-site).
 - The name `crab_run_{nodes}` and the `nodes` list: `benchmarks/blink/*.yaml` use that name with 2, 4, 8 and 16 nodes. Keep both, or edit the jobs files.
 - The module line of [Register Blink](launch.md#register-blink): at that prompt type your cluster's modules, not the Leonardo line.
@@ -118,10 +119,10 @@ Lines that are Leonardo's and need your cluster's values:
 The installer does not do these for another cluster:
 
 - It fills the four tokens and leaves the block name, `modules`, `env`, `time` and `tasks_per_node` as they are.
-- It checks the account with `sacctmgr` (when it is on `PATH`) and nothing else the file holds. `install.sh: all checks passed` and the dry run do not check the partition, the QOS, the time limit or the modules: a wrong one shows only when a job is submitted or runs. [Check the limits of your site](#check-the-limits-of-your-site) gives the commands that check them. When the lookup stops the run because your account is not listed, fix the name with `--account`, or pass `--skip-account-check` if the lookup is wrong for your site ([Reference](reference.md#installsh)).
+- It checks the account with `sacctmgr` (when it is on `PATH`) and nothing else the file holds. Without `sacctmgr` it prints the note `install.sh: note: sacctmgr is not on PATH, so the account myaccount was not checked against Slurm.` and goes on. `install.sh: all checks passed` and the dry run do not check the partition, the QOS, the time limit or the modules: a wrong one shows only when a job is submitted or runs. [Check the limits of your site](#check-the-limits-of-your-site) gives the commands that check them. When the lookup stops the run because your account is not listed, fix the name with `--account`, or pass `--skip-account-check` if the lookup is wrong for your site ([Reference](reference.md#installsh)).
 - It registers no benchmark binary: `crab setup` does that on each cluster.
 - Its self-check submits no job. The [smoke test](launch.md#launch-the-smoke-test) shows that jobs start.
-- It serves one cluster for each checkout: it reads those file names and no others.
+- It serves one cluster for each checkout: it reads those file names and no others, and `env.sh` names one cluster. A second cluster is a second clone of the umbrella, on that cluster, with its own `site/local.env` and edited template. The laptop keeps one clone for all of them: one dashboard profile for each cluster (its install dir is that cluster's `<umbrella-dir>`), and one `[[clusters]]` block for each in `remotes-config.toml`, each with its own `fetch_dirs`; the `local` folders of two clusters can differ. `sbatchman fetch -c <cluster>` copies one cluster, and `sbatchman fetch` copies all of them.
 
 ## Check the limits of your site
 

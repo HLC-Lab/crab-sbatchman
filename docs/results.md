@@ -2,7 +2,7 @@
 
 Copy the results of finished jobs to your laptop and plot them with `sbatchman visualize`.
 
-Run these steps on your laptop, installed as in [Install](install.md#install-on-your-laptop), once at least one job has finished: [Run a benchmark](launch.md#follow-the-jobs) shows how to see that.
+Run these steps on your laptop, installed as in [Install](install.md#install-on-your-laptop), once at least one job has finished: [Run a benchmark](launch.md#follow-the-jobs) shows how to see that. The first plot needs the whole path: [Install](install.md) on the cluster and the laptop, [Connect](connect.md), [Register Blink](launch.md#register-blink), the [smoke test](launch.md#launch-the-smoke-test) with the status `COMPLETED`, then the fetch in step 2.
 
 ## Fetch and plot
 
@@ -44,7 +44,7 @@ Run these steps on your laptop, installed as in [Install](install.md#install-on-
 
    A block without `alias` makes the start print `[WARN] No remote systems config: 'alias'`. The page then shows an empty "Fetch from remote" list for every cluster, not only for that block. The warning is harmless, because the plots and `sbatchman fetch` do not use that list. Add the `alias` line of step 1 to remove it.
 
-4. Open `http://127.0.0.1:8765`.
+4. Open `http://127.0.0.1:8765`. The page loads its plotting library (plotly) from `cdn.jsdelivr.net` and its fonts from `fonts.googleapis.com`, so the laptop needs internet access to draw the plots. Without it the library does not load and the plots cannot be drawn.
 
 The port is fixed at 8765, and `sbatchman visualize` has no option to change it. `crab web` serves on 8899 after `source env.sh`, so you can run both. If another program holds 8765, the command stops: [Troubleshooting](troubleshooting.md#sbatchman-visualize-does-not-start-because-port-8765-is-in-use) shows the error and how to find that program.
 

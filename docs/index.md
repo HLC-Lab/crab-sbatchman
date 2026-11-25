@@ -7,7 +7,7 @@ This repo, the umbrella, installs both at matching versions and ships example be
 
 ## What you need
 
-- A login on Leonardo and a Slurm account you can charge.
+- A login on a Slurm cluster (Leonardo, or another one) and a Slurm account you can charge.
 - A laptop that can ssh to the login node.
 - Python 3.11 or newer on the cluster and on the laptop.
 - git on both.
