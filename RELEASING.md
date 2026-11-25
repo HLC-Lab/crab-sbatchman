@@ -32,10 +32,13 @@ How the maintainer moves the pinned CRAB and crab-wrappers versions of this repo
    git -C CRAB fetch --tags && git -C CRAB checkout vX.Y.Z+sbatchman
    git -C crab-wrappers fetch --tags && git -C crab-wrappers checkout vX.Y.Z
    git submodule status
+   git add CRAB crab-wrappers
    ```
 
-2. Put the first 8 characters of the new CRAB commit into the pin assertion of `tests/test_layout.py`, and the new tag into the two CRAB links of `docs/benchmarks.md`.
+   Stage the two gitlinks before step 2: the script and the tests read the pinned commits from the index.
+
+2. Run `python tests/pins.py --write`. It rewrites the CRAB tag in the docs links and the SbatchMan version from `install.sh`. Read what changed with `git diff`.
 3. Run `pip install pytest pyyaml`, then `python -m pytest -q` from the repository root, without a sandbox. It must end with `passed`.
-4. Commit `CRAB`, `crab-wrappers` and `tests/test_layout.py` as `chore: pin CRAB to vX.Y.Z+sbatchman`.
+4. Commit `CRAB`, `crab-wrappers` and the changed docs as `chore: pin CRAB to vX.Y.Z+sbatchman`.
 5. Tag that commit `vX.Y.Z` with `git tag -a vX.Y.Z -m 'CRAB vX.Y.Z'`, so the three matching versions have one name, then push the branch and the tag.
 6. Wait for the `macos.yml` run that the push starts. If none started, run `gh workflow run macos.yml`.

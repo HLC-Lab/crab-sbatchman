@@ -632,7 +632,7 @@ def test_releasing_names_the_pin_chain_and_stays_short():
     assert path.is_file()
     text = path.read_text()
     assert len(text.splitlines()) <= 45
-    for needle in ("+sbatchman", "crab-wrappers", "tests/test_layout.py", "git submodule"):
+    for needle in ("+sbatchman", "crab-wrappers", "tests/pins.py", "git submodule"):
         assert needle in text, needle
     # The maintainer's private tooling is never named in a public file.
     assert ".crab-web-dev" not in text and ".claude" not in text

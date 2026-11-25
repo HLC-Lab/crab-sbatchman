@@ -36,7 +36,7 @@ def test_gitmodules_lists_exactly_two_https_submodules():
     assert by_path["CRAB"]["branch"] == "sbatchman"
 
 
-def test_submodules_are_gitlinks_and_crab_is_pinned():
+def test_submodules_are_gitlinks():
     gitlinks = {}
     for line in _git("ls-files", "-s").splitlines():
         meta, path = line.split("\t", 1)
@@ -44,7 +44,6 @@ def test_submodules_are_gitlinks_and_crab_is_pinned():
         gitlinks[path] = (mode, commit)
     assert gitlinks["CRAB"][0] == "160000"
     assert gitlinks["crab-wrappers"][0] == "160000"
-    assert gitlinks["CRAB"][1].startswith("5e3d855a")
 
 
 def test_tracked_folders_exist_and_site_file_has_placeholder():

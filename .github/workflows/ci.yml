@@ -43,7 +43,8 @@ jobs:
           python -m pytest -q \
             --deselect tests/test_benchmarks.py::test_every_embedded_config_passes_crab_validation \
             --deselect tests/test_docs.py::test_relative_links_resolve_and_anchors_match_a_heading \
-            --deselect tests/test_docs.py::test_repo_paths_in_code_exist
+            --deselect tests/test_docs.py::test_repo_paths_in_code_exist \
+            --deselect tests/test_pins.py
 
   docs:
     name: Build the site (strict)
