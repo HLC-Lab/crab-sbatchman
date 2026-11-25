@@ -14,7 +14,7 @@ Each start runs the parser on every job, writes the tables to `SbatchMan/data.sq
 
 ## Use the shared parser
 
-`sbatchman visualize` reads `./parser.py` of the folder you start it from. The umbrella ships one for CRAB results, `benchmarks/parser.py`, and `benchmarks/blink/parser.py` is a symbolic link to it. For a benchmark that CRAB runs, link the same file once the fetch made its `SbatchMan/` folder. Run this in the umbrella folder, and `ls -l` then shows `parser.py -> ../parser.py`:
+`sbatchman visualize` reads `./parser.py` of the folder you start it from. The umbrella ships one for CRAB results, `benchmarks/parser.py`, and `benchmarks/blink/parser.py` is a symbolic link to it. For a benchmark that CRAB runs, link the same file. The link needs only the shared file and the folder `benchmarks/<benchmark>`, which `mkdir -p` makes, so it does not wait for the fetch: make it before the first `sbatchman visualize`. Run this in the umbrella folder, and `ls -l` then shows `parser.py -> ../parser.py`:
 
 ```bash
 mkdir -p benchmarks/<benchmark>

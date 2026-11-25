@@ -42,6 +42,36 @@ jobs:
     command: crab worker --workdir "$SBATCHMAN_JOB_DIR"
 ```
 
+For the toy `myapp` of [Wrap and register your benchmark](benchmarks.md), use `myapp` as `<benchmark>` and save this as `benchmarks/<benchmark>/smoke.yaml`. The toy takes no flags, so `"args"` is empty:
+
+```yaml
+configs: ../../.local/configs.leonardo.yaml
+variables:
+  nodes:
+    - 2
+jobs:
+  - config: crab_run_{nodes}
+    tag: myapp-smoke-{nodes}
+    preprocess: |
+      mkdir -p "$SBATCHMAN_JOB_DIR"
+      cat > "$SBATCHMAN_JOB_DIR/config.json" <<'JSON'
+      {
+        "schema_version": 2,
+        "global_options": {"numnodes": "{nodes}", "ppn": "4", "name": "myapp-smoke-{nodes}"},
+        "experiments": {
+          "run": {
+            "apps": {
+              "0": {"path": "myapp/myapp.py", "args": "", "collect": true, "start": "0", "end": ""}
+            }
+          }
+        }
+      }
+      JSON
+    command: crab worker --workdir "$SBATCHMAN_JOB_DIR"
+```
+
+For your own application, change `myapp` to the name of your benchmark in `tag` and `"name"` (they stay equal), and to your wrapper in `"path"`. Change `"args"` to your flags, and `nodes` and `"ppn"` to values that your config allows. [Change the keys](#change-the-keys) explains each.
+
 ### Change the keys
 
 Change the keys of the jobs file you need:
@@ -73,11 +103,23 @@ Write the heredoc marker quoted (`<<'JSON'`) so the shell leaves the JSON as it 
 
 ### Check the file
 
-Run `./install.sh` once more. It runs `sbatchman init` in the new folder and checks every jobs file with `crab validate`. Then check the file without submitting anything:
+Only the installer validates the CRAB JSON in a jobs file. It runs `sbatchman init` in the new folder. Then, for each `benchmarks/*/*.yaml` file, it fills in the `variables`, takes the JSON out of the `<<JSON` heredoc and runs `crab validate` on it. It checks the first and the last combination of the variables, and `--full-check` checks them all. A wrong `"path"` or invalid JSON fails there. It does not catch a misspelled key, or a `config`, `tag` or `nodes` value that your config does not have: the dry run on the cluster catches the `config` and `nodes` values. Do not run `crab validate` on the jobs file yourself: the command reads a CRAB JSON file, and fails on the YAML with `not valid JSON`.
+
+On a laptop, run the installer with the laptop role. A bare `./install.sh` there installs the cluster role (see [Another cluster](presets.md#another-cluster)):
+
+```bash
+./install.sh --role laptop 2>&1 | grep -E 'jobs file|install.sh:'
+```
+
+The command runs in the umbrella folder and prints one line for each jobs file and the verdict. A good result has `OK jobs file benchmarks/<benchmark>/<job>.yaml passes crab validate` for your file and ends with `install.sh: all checks passed`. A failure prints `FAIL jobs file` with the reason. The `grep` hides other errors and the exit code: without the line `install.sh: all checks passed`, run the command again without the `grep`.
+
+On the cluster, run `./install.sh` for the same check. Then check what SbatchMan would submit, without submitting anything:
 
 ```bash
 cd benchmarks/<benchmark> && sbatchman launch -f <job>.yaml --dry-run
 ```
+
+Run the dry run on the cluster only. On a laptop it stops with `Configuration file ../../.local/configs.leonardo.yaml does NOT exist`, because only the cluster install writes that file.
 
 ## In the dashboard
 
