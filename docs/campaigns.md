@@ -57,7 +57,7 @@ jobs:
       cat > "$SBATCHMAN_JOB_DIR/config.json" <<'JSON'
       {
         "schema_version": 2,
-        "global_options": {"numnodes": "{nodes}", "ppn": "4", "name": "myapp-smoke-{nodes}"},
+        "global_options": {"numnodes": "{nodes}", "ppn": "2", "name": "myapp-smoke-{nodes}"},
         "experiments": {
           "run": {
             "apps": {
@@ -69,6 +69,8 @@ jobs:
       JSON
     command: crab worker --workdir "$SBATCHMAN_JOB_DIR"
 ```
+
+`nodes` 2 with `"ppn"` 2 start the 4 ranks of the toy's `ranks=4`. The toy prints from one rank only, so a run gives the 3 rows of its `expected.json`. A program that printed on every rank would give the toy wrapper many more rows, 12 for 4 ranks, because the wrapper reads the lines of all ranks in one output.
 
 For your own application, change `myapp` to the name of your benchmark in `tag` and `"name"` (they stay equal), and to your wrapper in `"path"`. Change `"args"` to your flags, and `nodes` and `"ppn"` to values that your config allows. [Change the keys](#change-the-keys) explains each.
 
@@ -113,7 +115,7 @@ On a laptop, run the installer with the laptop role. A bare `./install.sh` there
 
 The command runs in the umbrella folder and prints one line for each jobs file and the verdict. A good result has `OK jobs file benchmarks/<benchmark>/<job>.yaml passes crab validate` for your file and ends with `install.sh: all checks passed`. A failure prints `FAIL jobs file` with the reason. The `grep` hides other errors and the exit code: without the line `install.sh: all checks passed`, run the command again without the `grep`.
 
-On the cluster, run `./install.sh` for the same check. Then check what SbatchMan would submit, without submitting anything:
+On the cluster, run `./install.sh` for the same check. Run it for a new benchmark folder even if you do not need the check: it runs `sbatchman init` in every folder of `benchmarks/` that holds a `.yaml` file, and a folder becomes a SbatchMan project only then. Save the jobs file first. Without the project, `sbatchman launch` stops with `Error: SbatchMan root not found. Please run 'sbatchman init' or specify a directory.` Then check what SbatchMan would submit, without submitting anything:
 
 ```bash
 cd benchmarks/<benchmark> && sbatchman launch -f <job>.yaml --dry-run

@@ -2,11 +2,11 @@
 
 Wrap an application that CRAB does not support yet, then register its binary. To run Blink or another benchmark that `crab setup` offers, follow [Register Blink](launch.md#register-blink).
 
-You need the application's binary on the cluster and one real output of a run. Writing and testing the wrapper works on any machine with the umbrella installed, a laptop included. Registering a binary that exists and every run need the cluster: use the login node. On either machine, run the commands in a shell where you ran `source env.sh`. A wrapper written on a laptop must be copied to `CRAB/local/wrappers/` of the umbrella on the cluster before a job can find it.
+You need the application's binary on the cluster and one real output of a run. Writing and testing the wrapper works on any machine with the umbrella installed, a laptop included. Registering a binary that exists and every run need the cluster: use the login node. On either machine, run the commands in a shell where you ran `source env.sh`. A wrapper written on a laptop must be copied to the cluster before a job can find it: see [Copy the wrapper to the cluster](#copy-the-wrapper-to-the-cluster).
 
 ## What a wrapper is
 
-A wrapper is a small Python file that turns the output of your application into numbers. CRAB runs the application, hands its output to the wrapper and stores the numbers it returns. A receipt, written in the last steps, tells CRAB where the binary is. The wrapper and the receipt live on the cluster where the jobs run: the receipt in `local/receipts` of the `CRAB` folder, and the wrapper where the dashboard's wrapper picker finds it.
+A wrapper is a small Python file that turns the output of your application into numbers. CRAB runs the application, hands its output to the wrapper and stores the numbers it returns. A receipt, written in the last steps, tells CRAB where the binary is. The wrapper and the receipt live on the cluster where the jobs run: the receipt in `CRAB/local/receipts/`, and the wrapper in `CRAB/local/wrappers/`, where the dashboard's wrapper picker finds it.
 
 ## Get a real output
 
@@ -28,7 +28,7 @@ Create the wrapper from the template:
 crab wrappers new myapp --local
 ```
 
-This creates `myapp/myapp.py`, a README and a passing example in `local/wrappers/` of the `CRAB` folder. That folder is git-ignored and CRAB searches it first, so a job finds the wrapper as `myapp/myapp.py` and the submodule stays clean. Without `--local`, the wrapper goes to `crab-wrappers/` and shows as untracked content of that submodule in `git status`.
+This creates `myapp/myapp.py`, a README and a passing example in `local/wrappers/` of the `CRAB` folder. That folder is git-ignored and CRAB searches it first, so a job finds the wrapper as `myapp/myapp.py` and the submodule stays clean. Without `--local`, the wrapper goes to `crab-wrappers/` and shows as untracked content of that submodule in `git status`. A job and the test never read the README. Keep it or edit it. It matters when you send the wrapper as a pull request: [crab-wrappers](https://github.com/HLC-Lab/crab-wrappers) asks it to say where each sample comes from (system, date, application version). `crab wrappers show myapp/myapp.py` prints its first paragraph as `about` when the wrapper has no docstring.
 
 The example is a toy application, `myapp`, that prints one line per iteration:
 
@@ -38,6 +38,8 @@ iteration 1 time_us 12.5
 iteration 2 time_us 12.1
 iteration 3 time_us 12.8
 ```
+
+`ranks=4` is the toy's own count. You set the number of nodes and ranks per node later, in the [jobs file](campaigns.md#save-the-file). The toy prints from one rank only, as many MPI programs do.
 
 Replace the content of `myapp.py` with this wrapper. For your own application, write the wrapper against a real output.
 
@@ -70,6 +72,20 @@ The test runs your wrapper on a saved output, with no job and no binary. `crab w
 [{"time": 12.5}, {"time": 12.1}, {"time": 12.8}]
 ```
 
+To write both toy files at once, run this in the umbrella folder. It overwrites the template's two files and prints nothing:
+
+```bash
+cat > CRAB/local/wrappers/myapp/samples/example/stdout.txt <<'EOF'
+myapp ranks=4
+iteration 1 time_us 12.5
+iteration 2 time_us 12.1
+iteration 3 time_us 12.8
+EOF
+cat > CRAB/local/wrappers/myapp/samples/example/expected.json <<'EOF'
+[{"time": 12.5}, {"time": 12.1}, {"time": 12.8}]
+EOF
+```
+
 ```bash
 crab wrappers test myapp --strict
 ```
@@ -77,6 +93,17 @@ crab wrappers test myapp --strict
 The last line counts sample folders, not the rows inside them. `samples/example/` is one folder, so a good result is `1 ok, 0 failed`, whatever the number of rows.
 
 To share the wrapper, send the wrapper folder with its real sample folder as a pull request to [crab-wrappers](https://github.com/HLC-Lab/crab-wrappers).
+
+## Copy the wrapper to the cluster
+
+Skip this when you wrote the wrapper on the cluster. Otherwise run these two lines on the laptop, in the umbrella folder. Replace `<login-host>`, `<your-user>` and `<umbrella-dir>` as in [Connect](connect.md). The first line makes the folder `CRAB/local/wrappers` on the cluster, which a fresh install does not have. The second copies the folder `myapp` with its `samples/` into it:
+
+```bash
+ssh <your-user>@<login-host> 'mkdir -p <umbrella-dir>/CRAB/local/wrappers'
+rsync -a CRAB/local/wrappers/myapp <your-user>@<login-host>:<umbrella-dir>/CRAB/local/wrappers/
+```
+
+The quotes keep your laptop's shell from expanding a `~` in `<umbrella-dir>`. `rsync` prints nothing when it works. `ssh` can print the cluster's login banner. Copying again overwrites edits made on the cluster: edit the wrapper on the laptop and copy it again, or edit it only on the cluster. On the cluster, in a shell where you ran `source env.sh`, run `crab wrappers test myapp --strict`: a good result is `1 ok, 0 failed`.
 
 ## Register the binary
 
@@ -104,7 +131,18 @@ The symptom of a missing `module purge` is `symbol lookup error` in the app's lo
 crab wrappers list | grep myapp
 ```
 
-The command lists every wrapper, about 80 lines, so `grep` keeps the line of yours. That line, `myapp/myapp.py`, ends with the binary the jobs will use, here `binary receipt: /path/to/myapp`. `binary missing` means no receipt, `binary` key or `PATH` entry matches. Then run `crab list-benchmarks`: it lists `myapp  (binary)`.
+The command lists every wrapper, about 80 lines, so `grep` keeps the line of yours. That line, `myapp/myapp.py`, ends with the binary the jobs will use, here `binary receipt: /path/to/myapp`.
+
+`binary missing` means CRAB found no binary: no receipt, no `binary` key and no `PATH` entry matches, or the receipt names a path where no file exists. A receipt saved with `--allow-missing` still shows `binary missing` until a file exists at its path.
+
+Then run `crab list-benchmarks | grep myapp`. The command lists the installed benchmarks and then every wrapper, about 90 lines. Once a receipt exists, `grep` prints `  myapp  (binary)` and the wrapper's own line `  myapp/myapp.py`. Before the receipt, it prints only `  myapp/myapp.py`. The list reads only the receipt, so `myapp  (binary)` shows even when the file is not there yet.
+
+A job whose wrapper finds no binary fails before any run starts. The job's `stdout.log` (see [a failed job](troubleshooting.md#a-job-shows-failed-or-timeout-in-sbatchman-status)) holds one of these lines:
+
+- No receipt: `Experiment run failed: No binary for myapp (app 0). Tried: the app's 'binary' key in the config; receipt 'myapp'; no PATH lookup (the wrapper declares no executable).`
+- A receipt saved with `--allow-missing` for a file that is not there: `... Tried: the app's 'binary' key in the config; receipt or wrapper default '/path/to/myapp' (does not exist); no PATH lookup (the wrapper declares no executable).`
+
+A wrapper with `executable = "myapp"` ends the line with `'myapp' on PATH` instead. Register the binary or build the file, then launch again with `--force`: the failed job counts as an existing one ([Run a job again](launch.md#run-a-job-again)).
 
 Nothing here needs a `parser.py`. To plot the results of this benchmark later, on your laptop, its folder needs one: [Use the shared parser](plots.md#use-the-shared-parser) gives it, and says when to make it.
 
