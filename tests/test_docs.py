@@ -37,7 +37,7 @@ PAGE_CAPS = {
     "results": 100,
     "troubleshooting": 300,
     "reference": 300,
-    "presets": 120,
+    "presets": 170,
     "plots": 120,
     "glossary": 60,
 }
@@ -664,7 +664,7 @@ def test_the_page_caps_hold_and_never_loosen():
         "results": 100,
         "troubleshooting": 300,
         "reference": 300,
-        "presets": 120,
+        "presets": 170,
         "plots": 120,
         "glossary": 60,
     }

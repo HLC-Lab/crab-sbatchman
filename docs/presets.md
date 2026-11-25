@@ -88,13 +88,18 @@ Every `nodes` value a job uses must be in the `nodes` list under `variables`.
 
 The installer reads `configs/leonardo.yaml` and `site/leonardo.env` by name, plus your `site/local.env`, and writes `.local/configs.leonardo.yaml`. A file named `configs/<cluster>.yaml` is not read. For another Slurm cluster, keep these names and change what is inside the files.
 
+Run these steps on the cluster login node, in the umbrella clone there. Never run a bare `./install.sh` on your laptop: it installs the cluster role, writes `site/local.env` and `.local/configs.leonardo.yaml`, and rewrites `env.sh` (the line that sets `CRAB_WEB_PORT` goes, `SBATCHMAN_CLUSTER_NAME` is added). On a laptop run `./install.sh --role laptop`, which writes `env.sh` back.
+
 1. Add the settings of your cluster to `site/local.env`. The name takes letters, digits, `_`, `.` and `-`.
 
    ```bash
    SBATCHMAN_CLUSTER_NAME="mycluster"
+   SLURM_ACCOUNT="myaccount"
    SLURM_PARTITION="mypartition"
    SLURM_QOS="myqos"
    ```
+
+   `SLURM_ACCOUNT` is your Slurm account. `./install.sh --account NAME` gives the same and saves the name in `site/local.env`. With neither, the installer asks for the account. With no terminal to ask in, it stops with exit status 2.
 
 2. In `configs/leonardo.yaml`, rename the block `leonardo:` to the same name and change the lines listed here.
 3. Run `./install.sh`, then `source env.sh`. A good result is the line `OK sbatchman launch --dry-run on benchmarks/blink/smoke.yaml (submits nothing)`.
@@ -104,15 +109,62 @@ The block name and `SBATCHMAN_CLUSTER_NAME` must be equal. If they differ, Sbatc
 Lines that are Leonardo's and need your cluster's values:
 
 - The `modules` of `crab_run_{nodes}`: use modules your cluster has, with one that puts `mpirun` on `PATH`.
-- The `env` entries `CRAB_IB_DEVICES`, `UCX_IB_SL` and `NCCL_IB_SL` are Leonardo network settings: replace or delete them. `CRAB_SYSTEM` is the label recorded with the results: rename it.
-- `time` and `tasks_per_node` in `default_conf`: check them against your site's limits.
+- The `env` entries `CRAB_IB_DEVICES`, `UCX_IB_SL` and `NCCL_IB_SL` are Leonardo network settings: replace or delete them, and delete the comment line `# Leonardo network settings` with them. `CRAB_SYSTEM` is the label recorded with the results: rename it.
+- Comments that are true only on Leonardo, counting the lines of the unedited template: replace lines 1 and 2 (one sentence that names Leonardo and CINECA) with ``# Template of the SbatchMan configs file. Do not edit the filled copy: `./install.sh` fills this file into``, delete lines 16 and 17 (the one comment that begins `# The cluster block name below` and runs onto the next line), and delete the `boost_qos_dbg` remark at the end of the `qos:` line. Keep the `qos:` line itself.
+- `time` and `tasks_per_node` in `default_conf`: check them against your site's limits, as in [Check the limits of your site](#check-the-limits-of-your-site).
 - The name `crab_run_{nodes}` and the `nodes` list: `benchmarks/blink/*.yaml` use that name with 2, 4, 8 and 16 nodes. Keep both, or edit the jobs files.
 - The module line of [Register Blink](launch.md#register-blink): at that prompt type your cluster's modules, not the Leonardo line.
 
 The installer does not do these for another cluster:
 
 - It fills the four tokens and leaves the block name, `modules`, `env`, `time` and `tasks_per_node` as they are.
-- It checks the account with `sacctmgr` (when it is on `PATH`) and nothing else the file holds. A wrong partition, QOS or module shows only when a job is submitted or runs. When the lookup stops the run because your account is not listed, fix the name with `--account`, or pass `--skip-account-check` if the lookup is wrong for your site ([Reference](reference.md#installsh)).
+- It checks the account with `sacctmgr` (when it is on `PATH`) and nothing else the file holds. `install.sh: all checks passed` and the dry run do not check the partition, the QOS, the time limit or the modules: a wrong one shows only when a job is submitted or runs. [Check the limits of your site](#check-the-limits-of-your-site) gives the commands that check them. When the lookup stops the run because your account is not listed, fix the name with `--account`, or pass `--skip-account-check` if the lookup is wrong for your site ([Reference](reference.md#installsh)).
 - It registers no benchmark binary: `crab setup` does that on each cluster.
 - Its self-check submits no job. The [smoke test](launch.md#launch-the-smoke-test) shows that jobs start.
 - It serves one cluster for each checkout: it reads those file names and no others.
+
+## Check the limits of your site
+
+`time`, `tasks_per_node`, the partition, the QOS and the modules must fit your site. Your site's documentation has the numbers. These commands print them. Run them on the cluster login node and write your own values in place of `mypartition`, `myqos` and `myaccount`.
+
+1. List the partitions.
+
+   ```bash
+   sinfo -o "%P %l %D %c"
+   ```
+
+   Each line holds a partition (the default has a `*`), its time limit, its number of nodes and the CPUs of one node. `time` stays within that limit. `tasks_per_node` stays within those CPUs.
+
+2. Read the limits of your partition.
+
+   ```bash
+   scontrol show partition mypartition
+   ```
+
+   `MaxTime` is the longest `time`, `MaxNodes` the largest `nodes` value, and `AllowQos` and `AllowAccounts` name what the partition takes. `UNLIMITED` and `ALL` mean no limit.
+
+3. Read the QOS limits.
+
+   ```bash
+   sacctmgr show qos format=Name,MaxWall,MaxTRESPU
+   sacctmgr show assoc user=$USER format=Account,Partition,QOS%60
+   ```
+
+   The first command lists each QOS with its longest run time (`MaxWall`) and what one user can hold at once (`MaxTRESPU`). An empty field means no limit. The second lists the QOS names your account can use. A blank QOS there means the account takes its QOS from a parent account, and a value that ends with `+` is cut: raise the `60`.
+
+4. Find the modules. `module avail openmpi` lists the versions of a name. Load your modules by hand, then ask for the three tools `crab setup` needs. A good result is three paths.
+
+   ```bash
+   module load gcc openmpi cmake
+   command -v mpirun mpicc cmake
+   ```
+
+5. Ask Slurm to check the request. It submits no job. Use the `time` and `tasks_per_node` of your configs file, and for `--nodes` the largest node count of your jobs.
+
+   ```bash
+   sbatch --test-only --partition=mypartition --qos=myqos --account=myaccount --time=00:30:00 --nodes=2 --ntasks-per-node=4 --wrap=true
+   ```
+
+   A good result is a line that starts `sbatch: Job ` and ends with the start time Slurm expects. The job number is not a real job: nothing is queued. On most sites a bad partition, QOS, account, time or node count stops it with a line that starts `sbatch: error:`. A site that does not enforce QOS or account limits at submission can accept a request that only waits in the queue later. Then only the smoke test shows the problem.
+
+The modules of a job load only when it runs, so no command here checks them in the job. The [smoke test](launch.md#launch-the-smoke-test) is the first run that loads them: read the job's `stderr.log` if it fails.

@@ -27,6 +27,8 @@ crab setup
 
 5. At the GPU backend prompt, type `cuda`. CRAB's own documentation checked this answer with that module line on Leonardo. Enter picks `auto`.
 
+On another cluster, change the module answer. At the module prompt type `module load` and the modules of your site: a compiler, an MPI that puts `mpicc` and `mpirun` on `PATH`, and CMake. Leave out the CUDA module on a cluster without GPUs. If `cmake` or `mpicc` is missing, or the module line fails, the wizard says why, waits for Enter and ends without building. Its last panel still says the setup is complete. Run `crab setup` again from step 1. For the GPU question you can type `off` on a cluster without GPUs: it builds Blink for the CPU only, even if a CUDA toolkit is loaded. Enter (`auto`) works too: it gives a CPU-only build when CMake finds no CUDA or HIP toolkit. To find module names, see [Check the limits of your site](presets.md#check-the-limits-of-your-site).
+
 The wizard clones and builds Blink and prints the build log. Then run `crab list-benchmarks`. A good result prints `Installed benchmarks (1):` and the line `blink  (source)`.
 
 ## Launch the smoke test
