@@ -45,6 +45,17 @@ jobs:
             --deselect tests/test_docs.py::test_relative_links_resolve_and_anchors_match_a_heading \
             --deselect tests/test_docs.py::test_repo_paths_in_code_exist
 
+  docs:
+    name: Build the site (strict)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r docs/requirements.txt
+      - run: mkdocs build --strict
+
   installer:
     name: Cluster installer, Python ${{ matrix.python-version }}
     runs-on: ubuntu-latest

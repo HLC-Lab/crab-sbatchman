@@ -1,0 +1,3 @@
+# Documentation build dependencies. Install locally with: pip install -r docs/requirements.txt
+mkdocs>=1.6,<2
+mkdocs-material>=9.5,<10

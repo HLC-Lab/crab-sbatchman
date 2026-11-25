@@ -63,6 +63,7 @@ It ends by printing the paths of `crab` and `sbatchman`.
 | `site/local.env` | Your site settings. | yes |
 | `templates/` | Commented template of a jobs file and the CRAB config it writes. | no |
 | `docs/` | The documentation pages. | no |
+| `mkdocs.yml` | The documentation site settings. | no |
 | `tests/` | The checks that keep the installer and the docs true. | no |
 | `CRAB/` | The CRAB submodule, pinned. | no |
 | `CRAB/.venv/`, `CRAB/wrappers` | The virtual environment and the link to `crab-wrappers/`. | generated |

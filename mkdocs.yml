@@ -1,0 +1,62 @@
+site_name: CRAB and SbatchMan
+site_description: Install CRAB and SbatchMan on a Slurm cluster, run co-running benchmarks and plot the results.
+repo_url: https://github.com/HLC-Lab/crab-sbatchman
+repo_name: HLC-Lab/crab-sbatchman
+# The default folder `site/` holds the tracked site files of the clusters, and a build empties its folder.
+site_dir: _site
+# The requirements file sits in docs/ for the CI install line: the site does not publish it.
+exclude_docs: requirements.txt
+
+theme:
+  name: material
+  features:
+    - navigation.tracking
+    - navigation.sections
+    - navigation.top
+    - navigation.indexes
+    - content.code.copy
+    - toc.follow
+    - search.suggest
+    - search.highlight
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: deep orange
+      accent: deep orange
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: deep orange
+      accent: deep orange
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.superfences
+
+nav:
+  - Start here: index.md
+  - Install: install.md
+  - Run a benchmark: launch.md
+  - Add your benchmark:
+      - benchmarks.md
+      - campaigns.md
+  - Results: results.md
+  - Advanced: reference.md
+  - Help: troubleshooting.md

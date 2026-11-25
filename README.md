@@ -31,6 +31,7 @@ cd benchmarks/blink && sbatchman launch -f smoke.yaml
 
 | Page | What it answers |
 |---|---|
+| [Start here](docs/index.md) | What is this repo, and which page do I read first? |
 | [Install](docs/install.md) | How do I install the umbrella on the cluster and on my laptop? |
 | [Register a benchmark](docs/benchmarks.md) | How do I make a benchmark's binary known to the jobs? |
 | [Write a campaign](docs/campaigns.md) | How do I describe the jobs a benchmark runs? |

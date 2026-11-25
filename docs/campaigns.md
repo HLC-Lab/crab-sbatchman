@@ -69,7 +69,7 @@ The name is what a job writes in its `config:` key. Every `nodes` value a job us
    | `config` | The name of a config in the configs file. |
    | `tag` | The job name and its result folder. Keep it equal to `"name"` in the JSON. |
 
-4. Change the keys of the CRAB JSON you need. [The commented template](../templates/jobs-template.yaml) says what to change in each.
+4. Change the keys of the CRAB JSON you need. [The commented template](https://github.com/HLC-Lab/crab-sbatchman/blob/main/templates/jobs-template.yaml) says what to change in each.
 
    | Key | Meaning |
    |---|---|

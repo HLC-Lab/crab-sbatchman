@@ -15,12 +15,13 @@ ROOT = Path(__file__).resolve().parent.parent
 README = ROOT / "README.md"
 DOCS = ROOT / "docs"
 
-PAGES = ["install", "benchmarks", "campaigns", "launch", "results", "troubleshooting", "reference"]
+PAGES = ["index", "install", "benchmarks", "campaigns", "launch", "results", "troubleshooting", "reference"]
 PAGE_PATHS = [DOCS / f"{name}.md" for name in PAGES]
 # The README fails above README_MAX_LINES; README_TARGET_LINES is the length the owner wants.
 README_MAX_LINES = 60
 README_TARGET_LINES = 40
 PAGE_CAPS = {
+    "index": 40,
     "install": 80,
     "benchmarks": 110,
     "campaigns": 120,
@@ -614,6 +615,7 @@ def test_the_writing_rule_checks_catch_what_they_should():
 def test_the_page_caps_hold_and_never_loosen():
     assert README_MAX_LINES == 60 and README_TARGET_LINES == 40
     assert PAGE_CAPS == {
+        "index": 40,
         "install": 80,
         "benchmarks": 110,
         "campaigns": 120,

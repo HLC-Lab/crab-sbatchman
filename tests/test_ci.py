@@ -86,3 +86,26 @@ def test_installer_job_starts_at_the_python_the_installer_accepts():
     assert matrix["python-version"] == ["3.11", "3.12"]
     assert "sys.version_info >= (3, 11)" in (ROOT / "install.sh").read_text()
     assert "Python 3.11 or newer" in (ROOT / "docs" / "install.md").read_text()
+
+
+def test_docs_job_builds_the_site_strictly_and_needs_no_submodules():
+    job = load("ci.yml")["jobs"]["docs"]
+    assert job["runs-on"] == "ubuntu-latest"
+    assert not any("submodules" in step.get("with", {}) for step in job["steps"] if "uses" in step)
+    runs = [step["run"] for step in job["steps"] if "run" in step]
+    assert runs == ["pip install -r docs/requirements.txt", "mkdocs build --strict"]
+
+
+def test_pages_workflow_deploys_the_docs_from_main_and_is_skipped_while_private():
+    workflow = load("pages.yml")
+    triggers = workflow["on"]
+    assert set(triggers) == {"push", "workflow_dispatch"}
+    assert triggers["push"]["branches"] == ["main"]
+    assert set(triggers["push"]["paths"]) == {"docs/**", "mkdocs.yml", ".github/workflows/pages.yml"}
+    assert workflow["concurrency"] == {"group": "pages", "cancel-in-progress": False}
+    assert list(workflow["jobs"]) == ["deploy"]
+    job = workflow["jobs"]["deploy"]
+    assert job["if"] == "${{ !github.event.repository.private }}"
+    assert job["environment"]["name"] == "github-pages"
+    text = "\n".join(step["run"] for step in job["steps"] if "run" in step)
+    assert "mkdocs build --strict" in text
