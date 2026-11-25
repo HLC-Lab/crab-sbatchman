@@ -747,6 +747,9 @@ def test_the_pin_check_allows_only_the_module_line_of_the_run_page(tmp_path):
     # Module specs look like versions to tests/pins.py. Only that exact line is allowed, nothing near it.
     import pins
 
+    # pins.check reads the pins from the CRAB checkout, which the CI job without submodules does not have.
+    if not (ROOT / "CRAB" / "src").is_dir():
+        pytest.skip("needs the CRAB checkout")
     docs_copy = tmp_path / "docs"
     shutil.copytree(DOCS, docs_copy)
     assert [p for p in pins.check(docs_copy) if p.startswith("launch.md")] == []
