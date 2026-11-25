@@ -3,9 +3,12 @@
 Standard library and pytest only, no network. The flags come from the real `install.sh --help`.
 """
 
+import importlib.util
+import json
 import re
 import shutil
 import subprocess
+import textwrap
 from pathlib import Path
 
 import pytest
@@ -90,6 +93,9 @@ def _allowed_missing_path(token: str) -> bool:
         return True
     # The environment and the wrappers link inside CRAB/ are made by install.sh, not by the clone.
     if token.startswith("CRAB/.venv") or token == "CRAB/wrappers":
+        return True
+    # CRAB's git-ignored per-machine folder: private wrappers and their samples, receipts.
+    if token.startswith("CRAB/local/"):
         return True
     # The dashboard creates the staging folder when it writes a campaign file.
     if token.startswith("CRAB/.web_staging"):
@@ -785,3 +791,80 @@ def test_every_topic_has_one_home():
     for marker, home in TOPIC_HOMES.items():
         holders = sorted(path.stem for path in _all_docs() if marker in path.read_text())
         assert holders == [home], f"{marker!r} is in {holders}, its home is {home}"
+
+
+def _section(text: str, heading: str) -> str:
+    """The text under `## heading` up to the next `## ` heading (its `###` parts included)."""
+    marker = f"\n## {heading}\n"
+    assert marker in text, f"no section {heading!r}"
+    return text.split(marker, 1)[1].split("\n## ", 1)[0]
+
+
+def _fenced_blocks(text: str, language: str) -> list[str]:
+    """The bodies of the fences of `language` (a step may indent the fence), dedented."""
+    blocks = re.findall(rf"^[ \t]*```{language}\n(.*?)^[ \t]*```", text, flags=re.DOTALL | re.MULTILINE)
+    return [textwrap.dedent(block) for block in blocks]
+
+
+def _wrapper_example() -> str:
+    """The one python block of the "Write the wrapper" section of benchmarks.md."""
+    blocks = _fenced_blocks(_section((DOCS / "benchmarks.md").read_text(), "Write the wrapper"), "python")
+    assert len(blocks) == 1, f"{len(blocks)} python blocks, expected exactly one"
+    return blocks[0]
+
+
+def test_the_wrapper_example_is_short_and_complete():
+    code = _wrapper_example()
+    assert 8 <= len(code.splitlines()) <= 16, len(code.splitlines())
+    assert "class app(base)" in code
+    assert "metadata" in code
+    assert "def read_data" in code
+
+
+def test_the_wrapper_example_never_returns_made_up_numbers():
+    code = _wrapper_example()
+    assert "raise" in code
+    assert "[[0" not in code and "0.0]]" not in code
+    # No constant row either: a literal zero as the value of a metric.
+    assert not re.search(r":\s*0(\.0)?\s*[,}]", code)
+
+
+def test_the_wrapper_example_runs(tmp_path):
+    # A deliberate skip: the umbrella CI job without submodules installs no crab. The `tests` job runs it.
+    pytest.importorskip("crab.wrappers.base")
+    text = (DOCS / "benchmarks.md").read_text()
+    sample = _fenced_blocks(_section(text, "Write the wrapper"), "text")[0]
+    expected = json.loads(_fenced_blocks(_section(text, "Test the wrapper"), "json")[0])
+    path = tmp_path / "myapp.py"
+    path.write_text(_wrapper_example())
+    spec = importlib.util.spec_from_file_location("page_example_wrapper", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    wrapper = module.app(0, True, "")
+    wrapper.set_output(sample.encode(), b"")
+    assert wrapper.read_data() == expected
+    assert {metric["name"] for metric in module.app.metadata} == set(expected[0])
+    # Output that is not the sample's shape raises: a run fails, nothing made up is recorded.
+    for bad in ("", "myapp ranks=4\n", "iteration 1 time_us fast\n"):
+        wrapper.set_output(bad.encode(), b"")
+        with pytest.raises(ValueError):
+            wrapper.read_data()
+
+
+DASHBOARD_FIELDS = ("Tag", "SbatchMan config", "Nodes", "Processes per node", "Benchmark folder", "Configs file")
+
+
+def test_the_dashboard_section_does_not_repeat_the_key_table():
+    text = (DOCS / "campaigns.md").read_text()
+    for field in DASHBOARD_FIELDS:
+        assert text.count(f"**{field}**") == 1, field
+    # Two sentences of the key tables: each is written once, in the "By hand" section.
+    by_hand = _section(text, "By hand")
+    for sentence in ("SbatchMan runs one job per value", "The ranks per node of each app"):
+        assert text.count(sentence) == 1, sentence
+        assert sentence in by_hand, sentence
+    dashboard = _section(text, "In the dashboard")
+    assert "| Key | Meaning |" not in dashboard
+    assert "](#change-the-keys)" in dashboard

@@ -17,8 +17,8 @@ git clone --recurse-submodules https://github.com/HLC-Lab/crab-sbatchman.git
 | [Install](docs/install.md) | How do I install the umbrella on the cluster and on my laptop? |
 | [Connect](docs/connect.md) | How do I tell the dashboard and SbatchMan where the cluster is? |
 | [Run a benchmark](docs/launch.md) | How do I register Blink, launch its jobs and follow them? |
-| [Register a benchmark](docs/benchmarks.md) | How do I make my own application's binary known to the jobs? |
-| [Write a campaign](docs/campaigns.md) | How do I describe the jobs a benchmark runs? |
+| [Wrap and register your benchmark](docs/benchmarks.md) | How do I make my own application's output and binary known to the jobs? |
+| [Write the jobs file](docs/campaigns.md) | How do I describe the jobs a benchmark runs? |
 | [Results](docs/results.md) | How do I collect the results and plot them? |
 | [Troubleshooting](docs/troubleshooting.md) | What do I do when something fails? |
 | [Reference](docs/reference.md) | Which files are in the repo, and which can I change? |

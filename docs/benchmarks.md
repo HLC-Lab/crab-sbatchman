@@ -1,77 +1,79 @@
-# Register a benchmark
+# Wrap and register your benchmark
 
-Register a benchmark so that jobs find its binary through a receipt. A receipt is a small file that records where the binary lives on this cluster and which modules it needs. Run the commands in a shell where you ran `source env.sh`.
+Wrap an application that CRAB does not support yet, then register its binary. To run Blink or another benchmark that `crab setup` offers, follow [Register Blink](launch.md#register-blink).
 
-To register Blink or another benchmark that `crab setup` offers, follow [Register Blink](launch.md#register-blink). The rest is for an application of your own.
+You need the application's binary on the cluster and one real output of a run. Run every command on the cluster login node, in a shell where you ran `source env.sh`.
 
-## Register a new benchmark
+## What a wrapper is
 
-You need the application's binary on the cluster and a real output of one run of it. A wrapper tells CRAB how to read that output.
+A wrapper is a small Python file that turns the output of your application into numbers. CRAB runs the application, hands its output to the wrapper and stores the numbers it returns. A receipt, written in the last steps, tells CRAB where the binary is. The wrapper and the receipt live on the cluster where the jobs run: the receipt in `local/receipts` of the `CRAB` folder, and the wrapper where the dashboard's wrapper picker finds it.
 
-1. Create the wrapper.
+## Write the wrapper
 
-   ```bash
-   crab wrappers new myapp --local
-   ```
+Create the wrapper from the template:
 
-   This creates `myapp/myapp.py`, a README and a passing example in `local/wrappers/` of the `CRAB` folder. That folder is git-ignored and searched first, so `crab wrappers list` and `crab list-benchmarks` find the wrapper and the submodule stays clean. A job names it `myapp/myapp.py`. Without `--local`, the wrapper goes to `crab-wrappers/` and shows as untracked content of that submodule in `git status`.
+```bash
+crab wrappers new myapp --local
+```
 
-2. Write the parser against a real sample. [Writing a wrapper](https://github.com/HLC-Lab/CRAB/blob/v1.5.1+sbatchman/docs/extending/wrappers.md#the-contract) holds the full contract.
+This creates `myapp/myapp.py`, a README and a passing example in `local/wrappers/` of the `CRAB` folder. That folder is git-ignored and CRAB searches it first, so a job finds the wrapper as `myapp/myapp.py` and the submodule stays clean. Without `--local`, the wrapper goes to `crab-wrappers/` and shows as untracked content of that submodule in `git status`.
 
-   Edit `metadata` and `read_data()` in `myapp.py`:
+The example is a toy application, `myapp`, that prints one line per iteration:
 
-   - `metadata` lists each measured value with its `name` and `unit`.
-   - `"conv": True` in an entry makes CRAB repeat a run until that value converges.
-   - `read_data()` returns one dict per sample, with every metric and nothing else. It raises when the output is not what you expect.
+```text
+myapp ranks=4
+iteration 1 time_us 12.5
+iteration 2 time_us 12.1
+iteration 3 time_us 12.8
+```
 
-   In the wrapper's `samples/` folder, replace the example case with a folder that holds:
+Replace the content of `myapp.py` with this wrapper. For your own application, write the wrapper against a real output.
 
-   - `stdout.txt`: the real output of your application.
-   - `expected.json`: the rows the parser must return for it, one dict per sample.
-   - `case.json`: the wrapper file name and the application's arguments. Leave its `set` key at `{}`.
+```python
+from crab.wrappers.base import base
 
-   Then run the test:
 
-   ```bash
-   crab wrappers test myapp --strict
-   ```
+class app(base):
+    benchmark_id = "myapp"
+    metadata = [{"name": "time", "unit": "us", "conv": True}]
 
-   The last line counts one passed case per sample:
+    def read_data(self):
+        lines = [line for line in self.stdout.splitlines() if line.startswith("iteration")]
+        if not lines:
+            raise ValueError("no iteration line in the output of myapp")
+        return [{"time": float(line.split()[-1])} for line in lines]
+```
 
-   ```text
-   1 ok, 0 failed
-   ```
+- `benchmark_id` names the receipt of the binary. `metadata` lists each measured value with its `name` and `unit`. `"conv": True` makes CRAB repeat a run until that value converges.
+- `read_data()` returns one entry per sample, with a value for every metric and nothing else. It raises when the output is not what you expect, so a bad run fails instead of recording made-up numbers.
 
-3. Register the binary with a receipt.
+[Writing a wrapper](https://github.com/HLC-Lab/CRAB/blob/v1.5.1+sbatchman/docs/extending/wrappers.md#the-contract) holds the full contract, with sweeps over message sizes and correctness checks.
 
-   ```bash
-   crab receipts set myapp --binary /path/to/myapp --pre-run "module load openmpi"
-   ```
+## Test the wrapper
 
-   The first argument is the `benchmark_id` of the wrapper, which `crab wrappers new` sets to the app name. Repeat `--pre-run` for each command to run before every launch. Add `--launcher srun` or `--launcher mpirun` to override the launcher of your preset. A binary on `PATH` that the wrapper names in `executable` needs no receipt. The `modules` of the job's SbatchMan config (see [Add your config](campaigns.md#add-your-config)) and the `--pre-run` commands both apply: the config's modules load first, then each app's `--pre-run` commands run.
+The test runs your wrapper on a saved output, with no job and no binary. In `CRAB/local/wrappers/myapp/samples/example/`, put the real output of your application in `stdout.txt` (for the toy, the sample output), the arguments of the run in the `"args"` of `case.json`, and the rows the wrapper must return in `expected.json`, one entry per sample, each holding a value for every metric. For the toy:
 
-4. Check the wrapper and the receipt.
+```json
+[{"time": 12.5}, {"time": 12.1}, {"time": 12.8}]
+```
 
-   ```bash
-   crab wrappers list
-   ```
+```bash
+crab wrappers test myapp --strict
+```
 
-   The wrapper's line ends with the binary the jobs will use:
-
-   ```text
-   myapp/myapp.py                           binary receipt: /path/to/myapp
-   ```
-
-   `binary missing` means no receipt, `binary` key or `PATH` entry matches. Then run `crab list-benchmarks`: it lists `myapp  (binary)`.
-
-5. Give the benchmark folder a `parser.py`. `sbatchman visualize` reads `./parser.py` of the folder you start it from.
-
-   ```bash
-   mkdir -p benchmarks/<benchmark>
-   ln -s ../parser.py benchmarks/<benchmark>/parser.py
-   ```
+The last line counts one passed case per sample. A good result is `1 ok, 0 failed`.
 
 To share the wrapper, send the wrapper folder with the real sample as a pull request to [crab-wrappers](https://github.com/HLC-Lab/crab-wrappers).
+
+## Register the binary
+
+Record where the binary lives on this cluster. The command refuses a path that does not exist:
+
+```bash
+crab receipts set myapp --binary /path/to/myapp --pre-run "module load openmpi"
+```
+
+The first argument is the `benchmark_id` of the wrapper. Repeat `--pre-run` for each command to run before every launch. Add `--launcher srun` or `--launcher mpirun` to override the launcher of your preset. If the binary is on `PATH` when the job runs, add `executable = "myapp"` to the class and skip the receipt. The `modules` of the job's SbatchMan config (see [Add your config](campaigns.md#add-your-config)) and the `--pre-run` commands both apply: the config's modules load first, then each app's `--pre-run` commands run.
 
 ### Apps built with different module stacks
 
@@ -83,4 +85,21 @@ crab receipts set myapp --binary /path/to/myapp --pre-run "module purge" --pre-r
 
 The symptom of a missing `module purge` is `symbol lookup error` in the app's log. [Apps built with different module stacks](https://github.com/HLC-Lab/CRAB/blob/v1.5.1+sbatchman/docs/using/sbatchman-integration.md#apps-built-with-different-module-stacks) explains the cause.
 
-Next: [Write a campaign](campaigns.md).
+## Check it
+
+```bash
+crab wrappers list
+```
+
+The line of `myapp/myapp.py` ends with the binary the jobs will use, here `binary receipt: /path/to/myapp`. `binary missing` means no receipt, `binary` key or `PATH` entry matches. Then run `crab list-benchmarks`: it lists `myapp  (binary)`.
+
+## Give the benchmark folder a `parser.py`
+
+`sbatchman visualize` reads `./parser.py` of the folder you start it from.
+
+```bash
+mkdir -p benchmarks/<benchmark>
+ln -s ../parser.py benchmarks/<benchmark>/parser.py
+```
+
+Next: [Write the jobs file](campaigns.md).

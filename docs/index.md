@@ -22,7 +22,7 @@ Or add your own application, with a wrapper and a jobs file.
 1. [Install](install.md): put the umbrella on the cluster and on your laptop.
 2. [Connect](connect.md): tell the dashboard and SbatchMan where the cluster is.
 3. [Run a benchmark](launch.md): submit the jobs of a benchmark. Blink needs [registering](launch.md#register-blink) first.
-4. Add your benchmark: [Register a benchmark](benchmarks.md), then [Write a campaign](campaigns.md).
+4. Add your benchmark: [Wrap and register your benchmark](benchmarks.md), then [Write the jobs file](campaigns.md).
 5. [Results](results.md): copy the results to your laptop and plot them.
 6. [Reference](reference.md): look up the installer options, the files of the repo and the words the docs use.
 7. [Troubleshooting](troubleshooting.md): find the message of a failed step and what to do about it.
