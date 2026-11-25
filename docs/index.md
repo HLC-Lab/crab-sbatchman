@@ -10,9 +10,9 @@ This repo, the umbrella, installs both at matching versions and ships example be
 - A login on a Slurm cluster (Leonardo, or another one) and a Slurm account you can charge.
 - A laptop that can ssh to the login node.
 - Python 3.11 or newer on the cluster and on the laptop.
-- git on both.
+- git and rsync on both: `sbatchman fetch` copies the results with it. [Install](install.md#before-you-start) says more.
 
-Another Slurm cluster can use the umbrella too. You edit two files and keep the rest, so it takes less work than the Leonardo setup. See [Another cluster](presets.md#another-cluster).
+Another Slurm cluster can use the umbrella too. You edit two files (`site/local.env` and `configs/leonardo.yaml`), answer the questions of `crab setup` ([Register Blink](launch.md#register-blink)) and keep the rest. The checklist is [Another cluster](presets.md#another-cluster).
 
 ## Two ways to use it
 

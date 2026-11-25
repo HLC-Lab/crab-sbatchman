@@ -263,11 +263,13 @@ Without root, `lsof` and `ss` show only your own programs. `lsof` prints nothing
 
 ### The page opens with no data or no plots
 
-`sbatchman visualize` reads the jobs of the folder you start it from, and only those with status `COMPLETED`, `FAILED`, `TIMEOUT` or `CHECK_FAIL`. Check the status, copy the results, then start it from the benchmark folder:
+`sbatchman visualize` reads the jobs of the folder you start it from, and only those with status `COMPLETED`, `FAILED`, `TIMEOUT` or `CHECK_FAIL`. Check the status in the benchmark folder, on the cluster for the live state or on your laptop for the jobs you copied. Copy the results if the laptop folder lacks them, then start `sbatchman visualize` from that folder:
 
 ```bash
 sbatchman status
 ```
+
+The command opens a full-screen table and keeps running until you press `q`. It does not return by itself, and it does not wait for the network: an open screen is normal, not a hang. It reads the job records of the folder, and it asks Slurm about jobs that have not ended, which only the cluster can answer. The jobs are in the tabs Ended, Running and Queued. Empty tables mean the folder has no active jobs: press `a` to show archived jobs too.
 
 ### "Parser script not found:"
 

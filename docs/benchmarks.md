@@ -41,7 +41,7 @@ iteration 3 time_us 12.8
 
 `ranks=4` is the toy's own count. You set the number of nodes and ranks per node later, in the [jobs file](campaigns.md#save-the-file). The toy prints from one rank only, as many MPI programs do.
 
-Replace the content of `myapp.py` with this wrapper. For your own application, write the wrapper against a real output.
+Open `CRAB/local/wrappers/myapp/myapp.py` in an editor, delete everything in it, paste this wrapper and save. For your own application, write the wrapper against a real output.
 
 ```python
 from crab.wrappers.base import base
@@ -107,7 +107,7 @@ The quotes keep your laptop's shell from expanding a `~` in `<umbrella-dir>`. `r
 
 ## Register the binary
 
-Record where the binary lives on this cluster. Run it on the login node, where the path exists: the command refuses a path that does not exist here. Add `--allow-missing` to record a path that is not there yet, such as a binary you build later. CRAB then saves the path without checking it.
+Record where the binary lives on this cluster. Run it on the login node, where the path exists: the command refuses a path that does not exist here. The receipt is a file in `CRAB/local/receipts/` of the machine where the command ran, and the rsync step of [Copy the wrapper to the cluster](#copy-the-wrapper-to-the-cluster) does not carry it. Run `crab receipts set` on the cluster, also when you wrote the wrapper on your laptop. Add `--allow-missing` to record a path that is not there yet, such as a binary you build later. CRAB then saves the path without checking it.
 
 ```bash
 crab receipts set myapp --binary /path/to/myapp --pre-run "module load openmpi"
