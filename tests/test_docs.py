@@ -22,7 +22,7 @@ ROOT = Path(__file__).resolve().parent.parent
 README = ROOT / "README.md"
 DOCS = ROOT / "docs"
 
-PAGES = ["index", "install", "connect", "benchmarks", "campaigns", "launch", "results", "troubleshooting", "reference", "presets", "plots"]
+PAGES = ["index", "install", "connect", "benchmarks", "campaigns", "launch", "results", "troubleshooting", "reference", "presets", "plots", "glossary"]
 PAGE_PATHS = [DOCS / f"{name}.md" for name in PAGES]
 # The README fails above README_MAX_LINES; README_TARGET_LINES is the length the owner wants.
 README_MAX_LINES = 60
@@ -39,6 +39,7 @@ PAGE_CAPS = {
     "reference": 300,
     "presets": 120,
     "plots": 120,
+    "glossary": 60,
 }
 
 # Words and phrases the prose never uses (whole words, any case). See "Writing docs" in the style guide.
@@ -665,6 +666,7 @@ def test_the_page_caps_hold_and_never_loosen():
         "reference": 300,
         "presets": 120,
         "plots": 120,
+        "glossary": 60,
     }
     assert set(PAGE_CAPS) == set(PAGES)
 
@@ -1189,3 +1191,57 @@ def test_the_advanced_section_lists_reference_configs_and_plots():
     advanced = next(entry["Advanced"] for entry in nav if isinstance(entry, dict) and "Advanced" in entry)
     assert advanced == ["reference.md", "presets.md", "plots.md"]
     assert "](plots.md" in (DOCS / "index.md").read_text()
+
+
+def _glossary_terms() -> list[str]:
+    """The first cells of the glossary table, in file order."""
+    return [cells[0] for cells in _table_rows((DOCS / "glossary.md").read_text(), "Word")]
+
+
+def test_the_glossary_has_one_home():
+    # The glossary moved from the reference page to its own page in the Help section: one copy, no link left behind.
+    glossary = DOCS / "glossary.md"
+    assert glossary.is_file()
+    assert glossary.read_text().splitlines()[0] == "# Glossary"
+    assert _h1_count(glossary.read_text()) == 1
+    heading = re.compile(r"^#{1,6} Glossary\s*$", re.MULTILINE)
+    assert [path.stem for path in _all_docs() if heading.search(path.read_text())] == ["glossary"]
+    assert "reference.md#glossary" not in "\n".join(path.read_text() for path in _all_docs())
+    assert "words the docs use" not in (DOCS / "reference.md").read_text()
+
+
+def test_every_glossary_term_is_used_in_the_docs():
+    # A row for a word that no page uses is clutter: each term occurs in a page other than the glossary.
+    terms = _glossary_terms()
+    assert len(terms) >= 12, terms
+    others = "\n".join(path.read_text() for path in PAGE_PATHS if path.stem != "glossary").lower()
+    assert [term for term in terms if term.lower() not in others] == []
+
+
+def test_the_glossary_defines_the_words_the_docs_use_without_explaining():
+    terms = {term.lower() for term in _glossary_terms()}
+    wanted = {
+        "umbrella", "campaign", "jobs file", "tag", "receipt", "wrapper", "cluster profile", "login node",
+        "slurm account", "sbatchman project", "fetch", "dashboard", "config", "configs file", "self-check",
+    }  # fmt: skip
+    assert sorted(wanted - terms) == []
+
+
+def test_the_glossary_is_alphabetical_and_each_row_has_a_meaning_and_no_repeat():
+    text = (DOCS / "glossary.md").read_text()
+    terms = _glossary_terms()
+    assert terms == sorted(terms, key=str.lower)
+    assert len({term.lower() for term in terms}) == len(terms)
+    for cells in _table_rows(text, "Word"):
+        assert len(cells) == 2 and all(cells), cells
+        assert cells[1].endswith("."), cells
+
+
+def test_the_help_section_lists_troubleshooting_and_glossary():
+    nav = yaml.safe_load((ROOT / "mkdocs.yml").read_text())["nav"]
+    titles = [next(iter(entry)) for entry in nav if isinstance(entry, dict)]
+    assert titles[-1] == "Help"
+    help_section = next(entry["Help"] for entry in nav if isinstance(entry, dict) and "Help" in entry)
+    assert help_section == ["troubleshooting.md", "glossary.md"]
+    assert "](glossary.md" in (DOCS / "index.md").read_text()
+    assert "(docs/glossary.md)" in README.read_text()

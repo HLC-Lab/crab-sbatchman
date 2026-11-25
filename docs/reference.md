@@ -1,6 +1,6 @@
 # Reference
 
-Look up the options of `install.sh`, what `env.sh` sets, the files of the repo and the words the docs use.
+Look up the options of `install.sh`, what `env.sh` sets, the files of the repo and the known limits.
 
 ## `install.sh`
 
@@ -69,19 +69,6 @@ It ends by printing the paths of `crab` and `sbatchman`.
 | `CRAB/.venv/`, `CRAB/wrappers` | The virtual environment and the link to `crab-wrappers/`. | generated |
 | `crab-wrappers/` | The wrappers submodule, pinned. | no, except a shared wrapper that goes to the crab-wrappers repository |
 | `.local/` | The filled configs file, `.local/configs.leonardo.yaml`. | generated |
-
-## Glossary
-
-| Word | Meaning |
-|---|---|
-| Wrapper | A Python file that names an application's binary and turns its output into rows. Shared wrappers are in `crab-wrappers/`, private ones in `local/wrappers/` of the `CRAB` folder. |
-| Receipt | A small file that records where a binary lives on this cluster and which modules it needs. |
-| Jobs file | A YAML file in `benchmarks/<benchmark>/` that lists the jobs SbatchMan launches. |
-| Configs file | The SbatchMan file `.local/configs.leonardo.yaml`, the one name the installer writes, filled from `configs/leonardo.yaml`. [Configs file](presets.md) has its fields. |
-| Config | A named entry of the configs file: the nodes, modules and GPUs of the jobs that use it. [Add your config](presets.md#add-your-config) adds one. |
-| Campaign | A jobs file written for one set of runs. It is not the `sbatchman campaign` command, which takes a YAML file of its own kind. |
-| SbatchMan project | The `SbatchMan/` folder that `sbatchman init` creates in a benchmark folder. |
-| Self-check | The last step of `install.sh`: one `OK` or `FAIL` line per item, then a summary. It submits no Slurm job. |
 
 ## Known limits
 
