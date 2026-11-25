@@ -42,7 +42,7 @@ def test_ci_runs_on_linux_only_and_is_blocking():
     assert "continue-on-error" not in text
     matrix = load("ci.yml")["jobs"]["tests"]["strategy"]["matrix"]
     assert matrix["os"] == ["ubuntu-latest"]
-    assert matrix["python-version"] == ["3.10", "3.12"]
+    assert matrix["python-version"] == ["3.11", "3.12"]
 
 
 def test_macos_workflow_runs_only_on_main_pull_requests_and_by_hand_for_the_install_files():
@@ -78,3 +78,11 @@ def test_macos_workflow_proves_bash_3_2_and_runs_the_real_laptop_installer_twice
     assert text.count("install.sh: all checks passed") >= 2
     assert "zsh -c" in text and "command -v crab" in text and "CRAB/.venv/bin" in text
     assert "rsync --version" in text and "rsync -zvrh --update" in text
+
+
+def test_installer_job_starts_at_the_python_the_installer_accepts():
+    """SbatchMan imports tomllib (Python 3.11+), so the installer, its docs and the job share one floor."""
+    matrix = load("ci.yml")["jobs"]["installer"]["strategy"]["matrix"]
+    assert matrix["python-version"] == ["3.11", "3.12"]
+    assert "sys.version_info >= (3, 11)" in (ROOT / "install.sh").read_text()
+    assert "Python 3.11 or newer" in (ROOT / "docs" / "install.md").read_text()

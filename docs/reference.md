@@ -24,7 +24,7 @@ The environment variable `SBATCHMAN_VERSION` sets the SbatchMan version to insta
 | Exit code | Meaning |
 |---|---|
 | 0 | Done, and every check passed or was skipped. |
-| 1 | An environment problem (Python older than 3.10, CRAB or the template missing, an unfilled token), an account that `sacctmgr` does not list for you, or a failed check. |
+| 1 | An environment problem (Python older than 3.11, CRAB or the template missing, an unfilled token), an account that `sacctmgr` does not list for you, or a failed check. |
 | 2 | A bad argument, a bad value, or no Slurm account. |
 
 ## Environment

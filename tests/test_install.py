@@ -348,7 +348,7 @@ def test_old_python_stops_before_changing_anything(tmp_path):
     assert "module load python" in result.stderr
     assert "Python 3.6.8" in result.stderr
     assert (
-        "On a Mac install Python 3.10 or newer from python.org or Homebrew and put it first on PATH"
+        "On a Mac install Python 3.11 or newer from python.org or Homebrew and put it first on PATH"
         in result.stderr
     )
     assert listing(root) == before
@@ -440,7 +440,7 @@ def test_check_cluster_run_prints_ok_for_every_check(tmp_path):
     assert result.returncode == 0, result.stderr
     lines = check_lines(result)
     assert all(ln.startswith("OK ") for ln in lines), lines
-    line_with(lines, "python 3.10")
+    line_with(lines, "python 3.11")
     line_with(lines, "sbatchman 2.0.4")
     line_with(lines, "crab", "CRAB/.venv/bin")
     line_with(lines, "sbatchman", "resolves", "CRAB/.venv/bin")
@@ -809,7 +809,7 @@ def test_dry_run_lists_the_checks_and_runs_none(tmp_path):
     assert result.returncode == 0, result.stderr
     would = [ln for ln in result.stdout.splitlines() if ln.startswith("would check: ")]
     assert len(would) == 7, would
-    line_with(would, "python 3.10")
+    line_with(would, "python 3.11")
     line_with(would, "sbatchman 2.0.4")
     line_with(would, "wrappers")
     line_with(would, "jobs file", "benchmarks/blink/smoke.yaml")
@@ -853,7 +853,7 @@ def test_laptop_role_runs_only_the_checks_that_apply(tmp_path):
     assert result.returncode == 0, result.stderr
     lines = check_lines(result)
     assert all(ln.startswith("OK ") for ln in lines), lines
-    line_with(lines, "python 3.10")
+    line_with(lines, "python 3.11")
     line_with(lines, "sbatchman 2.0.4")
     line_with(lines, "wrappers")
     line_with(lines, "benchmarks/blink/smoke.yaml", "crab validate")

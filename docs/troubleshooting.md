@@ -6,10 +6,10 @@ Messages are quoted as the program prints them. Where a message holds a version 
 
 ## Install
 
-### "python3 is Python 3.6.8: 3.10 or newer is needed"
+### "python3 is Python 3.6.8: 3.11 or newer is needed"
 
 ```text
-python3 is Python 3.6.8: 3.10 or newer is needed. On a cluster run 'module load python' first. On a Mac install Python 3.10 or newer from python.org or Homebrew and put it first on PATH. Then run install.sh again.
+python3 is Python 3.6.8: 3.11 or newer is needed. On a cluster run 'module load python' first. On a Mac install Python 3.11 or newer from python.org or Homebrew and put it first on PATH. Then run install.sh again.
 ```
 
 The login node's default Python is too old. Load a newer one and run the installer again:
@@ -121,7 +121,7 @@ A failed check does not stop the later ones. The installer prints `install.sh: 2
 ### "FAIL python in the venv"
 
 ```text
-FAIL python in the venv: CRAB/.venv/bin/python needs 3.10 or newer, found: Python 3.6.8
+FAIL python in the venv: CRAB/.venv/bin/python needs 3.11 or newer, found: Python 3.6.8
 ```
 
 The environment was built with an old Python. Load a newer one, remove the environment and install again:

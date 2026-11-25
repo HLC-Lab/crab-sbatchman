@@ -172,10 +172,10 @@ fi
 # A cluster Python module exports PYTHONPATH, which breaks the venv's pip.
 unset PYTHONPATH PYTHONHOME
 
-# 1. Python 3.10 or newer, before anything is created.
-if ! python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)' 2>/dev/null; then
+# 1. Python 3.11 or newer, before anything is created.
+if ! python3 -c 'import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)' 2>/dev/null; then
     found="$(python3 --version 2>&1 || echo 'not found')"
-    echo "python3 is ${found}: 3.10 or newer is needed. On a cluster run 'module load python' first. On a Mac install Python 3.10 or newer from python.org or Homebrew and put it first on PATH. Then run install.sh again." >&2
+    echo "python3 is ${found}: 3.11 or newer is needed. On a cluster run 'module load python' first. On a Mac install Python 3.11 or newer from python.org or Homebrew and put it first on PATH. Then run install.sh again." >&2
     exit 1
 fi
 
@@ -558,7 +558,7 @@ check_install() {
     local file rel out found resolved tool problem dir n=0
     echo
     if [[ $DRY_RUN -eq 1 ]]; then
-        echo "would check: python 3.10 or newer in the venv"
+        echo "would check: python 3.11 or newer in the venv"
         echo "would check: sbatchman $SBATCHMAN_VERSION installed in the venv"
         echo "would check: crab resolves inside CRAB/.venv/bin"
         echo "would check: sbatchman resolves inside CRAB/.venv/bin"
@@ -575,11 +575,11 @@ check_install() {
     echo "Checking the install (no Slurm job is submitted):"
 
     # a. Python and SbatchMan in the venv.
-    if "$VENV_BIN/python" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)' >/dev/null 2>&1; then
-        check_ok "python 3.10 or newer in the venv"
+    if "$VENV_BIN/python" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 11) else 1)' >/dev/null 2>&1; then
+        check_ok "python 3.11 or newer in the venv"
     else
         found="$("$VENV_BIN/python" --version 2>&1 || true)"
-        check_fail "python in the venv" "CRAB/.venv/bin/python needs 3.10 or newer, found: $(one_line "$found")"
+        check_fail "python in the venv" "CRAB/.venv/bin/python needs 3.11 or newer, found: $(one_line "$found")"
     fi
     if sbatchman_installed_version; then
         found="$SBATCHMAN_FOUND"
