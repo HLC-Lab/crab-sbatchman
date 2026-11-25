@@ -100,7 +100,7 @@ cd benchmarks/<benchmark> && sbatchman launch -f <job>.yaml --dry-run
 
 The dashboard writes the jobs file into a benchmark folder of the umbrella on the cluster, and keeps a copy on your laptop. It does not launch the jobs.
 
-1. Connect the cluster as in [Install](install.md#connect-your-cluster-in-crab-web), then open **SbatchMan**.
+1. Connect the cluster as in [Connect](connect.md#add-the-cluster-in-crab-web), then open **SbatchMan**.
 2. Type the campaign name in the field next to **Save**. The file is that name in lower case with dashes, such as `myapp-scaling.yaml`.
 3. Under **Write to cluster**, pick the cluster. In **Benchmark folder**, pick a folder of `benchmarks/`, or type a new name to make one. Empty uses the first folder.
 4. In **Group**, fill **Tag**, **SbatchMan config**, **Nodes** and **Processes per node**. **SbatchMan config** suggests the names in `.local/configs.<cluster>.yaml`.

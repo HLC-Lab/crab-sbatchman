@@ -15,7 +15,7 @@ ROOT = Path(__file__).resolve().parent.parent
 README = ROOT / "README.md"
 DOCS = ROOT / "docs"
 
-PAGES = ["index", "install", "benchmarks", "campaigns", "launch", "results", "troubleshooting", "reference"]
+PAGES = ["index", "install", "connect", "benchmarks", "campaigns", "launch", "results", "troubleshooting", "reference"]
 PAGE_PATHS = [DOCS / f"{name}.md" for name in PAGES]
 # The README fails above README_MAX_LINES; README_TARGET_LINES is the length the owner wants.
 README_MAX_LINES = 60
@@ -23,6 +23,7 @@ README_TARGET_LINES = 40
 PAGE_CAPS = {
     "index": 40,
     "install": 80,
+    "connect": 70,
     "benchmarks": 110,
     "campaigns": 120,
     "launch": 100,
@@ -436,10 +437,10 @@ def test_no_forbidden_project_word_or_url():
 
 
 def test_the_add_cluster_example_checks_the_host_key_and_uses_the_form_labels():
-    install = (DOCS / "install.md").read_text()
-    assert "| Host key | strict" in install
-    assert "| Host key | insecure" not in install
-    assert "| Auth | agent (ssh-agent / cert) |" in install
+    connect = (DOCS / "connect.md").read_text()
+    assert "| Host key | strict" in connect
+    assert "| Host key | insecure" not in connect
+    assert "| Auth | agent (ssh-agent / cert) |" in connect
     # The one place that tells when `insecure` is acceptable also warns about `password`.
     limits = (DOCS / "reference.md").read_text().split("## Known limits", 1)[1]
     assert "`insecure`" in limits and "`password`" in limits
@@ -458,6 +459,32 @@ def test_the_readme_clones_the_umbrella_from_its_address():
         assert clone_url_problems(path.read_text()) == [], path.name
 
 
+OPTIONAL_RE = re.compile(r"\boptional\b", re.IGNORECASE)
+
+
+def test_the_laptop_is_not_called_optional():
+    # The dashboard, `sbatchman fetch` and `sbatchman visualize` all run on the laptop.
+    for path in _all_docs():
+        text = path.read_text()
+        assert "Optional: install the umbrella on your laptop" not in text, path.name
+        for line in text.splitlines():
+            assert not (OPTIONAL_RE.search(line) and "laptop" in line.lower()), f"{path.name}: {line}"
+    install = (DOCS / "install.md").read_text()
+    assert "\n## Install on your laptop\n" in install
+    assert "The laptop is part of the setup" in install
+    needs = (DOCS / "index.md").read_text().split("## What you need", 1)[1].split("\n## ", 1)[0]
+    assert "laptop" in needs
+
+
+def test_readme_does_not_repeat_the_install_steps():
+    # The install steps live in docs/install.md only; the README holds the clone line and points there.
+    readme = README.read_text()
+    assert "./install.sh" not in readme
+    assert len(re.findall(r"^\s*```bash\s*$", readme, flags=re.MULTILINE)) <= 1
+    linked = {(ROOT / t.split("#", 1)[0]).resolve() for t in _link_targets(readme)}
+    assert (DOCS / "install.md").resolve() in linked
+
+
 def test_no_personal_word():
     words = forbidden_or_skip()
     for path in _all_docs():
@@ -468,8 +495,8 @@ def test_no_personal_word():
 
 def test_the_connect_step_says_to_run_crab_web_on_the_laptop():
     # Any other user of a shared machine can read the dashboard token over loopback.
-    install = (DOCS / "install.md").read_text()
-    step = install.split("## Connect your cluster in crab web", 1)[1].split("2. Open", 1)[0]
+    connect = (DOCS / "connect.md").read_text()
+    step = connect.split("## Add the cluster in crab web", 1)[1].split("2. Open", 1)[0]
     assert "on your laptop" in step and "not on the cluster" in step
 
 
@@ -617,6 +644,7 @@ def test_the_page_caps_hold_and_never_loosen():
     assert PAGE_CAPS == {
         "index": 40,
         "install": 80,
+        "connect": 70,
         "benchmarks": 110,
         "campaigns": 120,
         "launch": 100,

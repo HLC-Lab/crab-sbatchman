@@ -52,7 +52,9 @@ markdown_extensions:
 
 nav:
   - Start here: index.md
-  - Install: install.md
+  - Install:
+      - install.md
+      - connect.md
   - Run a benchmark: launch.md
   - Add your benchmark:
       - benchmarks.md
