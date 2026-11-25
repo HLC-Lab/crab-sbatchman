@@ -1,37 +1,62 @@
-# Launch and follow jobs
+# Run a benchmark
 
-Submit the jobs of a benchmark, follow them in the queue and run them again after a change.
+Run a benchmark that is already supported, Blink first, from registering it to finding its results. Run every step on the cluster login node. [Results](results.md) then copies the results to your laptop.
 
 ## Before you start
 
-- You ran `source env.sh` in this shell.
-- You are in the benchmark folder: `cd benchmarks/<benchmark>`. Each benchmark folder is one SbatchMan project.
+- You installed the umbrella on the cluster, as in [Install](install.md#install-on-the-cluster). The installer saved your Slurm account, so no step here asks for it.
+- You connected the laptop to the cluster, as in [Connect](connect.md). Launching needs no connection. Copying the results does.
+- You ran `source env.sh` in this shell. Run it again in every new shell.
 
-## Launch the jobs
+## Register Blink
 
-1. Check the jobs without submitting them. Start with the small `smoke.yaml` of Blink.
+Register a benchmark once on each cluster. The wizard writes a receipt, a small file that records where the binary is and which modules it needs. Jobs read it. Any benchmark that `crab setup` offers registers the same way.
+
+```bash
+crab setup
+```
+
+1. Choose "Install or configure a supported benchmark".
+2. Tick the Blink Suite and untick the others.
+3. At the strategy prompt, type `4` for "Download and compile from source layout". Enter picks `1`, auto-detect, which does not build Blink. For a binary that is already built, type `2` for "Provide explicit manual path layout" and give its path.
+4. At the module prompt, type the Leonardo line. It loads the modules of `crab_run_{nodes}` in `configs/leonardo.yaml`, plus CUDA and CMake for the build. CRAB saves it in the receipt, so jobs load the same modules.
+
+   ```text
+   module load gcc/12.2.0 openmpi/4.1.6--gcc--12.2.0-cuda-12.2 cuda/12.2 cmake/3.27.9
+   ```
+
+5. At the GPU backend prompt, type `cuda`. CRAB's own documentation checked this answer with that module line on Leonardo. Enter picks `auto`.
+
+The wizard clones and builds Blink and prints the build log. Then run `crab list-benchmarks`. A good result prints `Installed benchmarks (1):` and the line `blink  (source)`.
+
+## Launch the smoke test
+
+`smoke.yaml` is the jobs file of the smoke test: one all-to-all alone on 2 nodes. The configs file sets a 30-minute limit. Run it first. It shows that the project, the configs file and CRAB's worker all work. Each benchmark folder is one SbatchMan project: run the commands of this section and the next ones in `benchmarks/blink`. For your own benchmark, run the same commands in its folder with your jobs file.
+
+1. See the jobs without submitting them.
 
    ```bash
+   cd benchmarks/blink
    sbatchman launch -f smoke.yaml --dry-run
    ```
 
-   The command prints a `Would generate` line for each job. It then also prints `Submitted successfully 1 jobs.`, which is wrong: nothing is submitted. Confirm it with `squeue --me`.
+   The command prints `Would generate crab_run_2 / a2a-smoke-2` for the job. It then also prints `Submitted successfully 1 jobs.`, which is wrong: nothing is submitted, as its last line `This was a dry-run. No job has run.` says. Confirm with `squeue --me`.
 
-2. Launch them.
+2. Launch the job.
 
    ```bash
    sbatchman launch -f smoke.yaml
    ```
 
-   The output ends with `Submitted successfully N jobs`. Read `N`: a failed `sbatch` prints `Failed to submit job:` and the exit code stays 0.
+   A good result prints `Submitted crab_run_2 / a2a-smoke-2` and ends with `Submitted successfully 1 jobs.` Read the number: a failed `sbatch` prints `Failed to submit job:` and the exit code stays 0.
 
-3. Follow the jobs.
+## Follow the jobs
 
-   ```bash
-   sbatchman status
-   ```
+```bash
+sbatchman status
+```
 
-   The table lists the Slurm job id, status, config and tag of each job. The status is `QUEUED`, `RUNNING`, `COMPLETED`, `FAILED`, `CANCELLED` or `TIMEOUT`. Press `r` to refresh and `q` to quit.
+The table lists the Slurm job id, cluster, status, config, tag, category and command of each job. It asks Slurm again every 90 seconds. Press `r` to ask now, Enter on a job to read its `stdout.log` and `stderr.log`, and `q` to quit. The status is `QUEUED` (waiting in the Slurm queue), `RUNNING`, `COMPLETED` (the job's command exited with 0: the good result), `FAILED` (it exited with another code), `CHECK_FAIL` (the job's check command failed), `FAILED_SUBMISSION` (Slurm refused the job), `CANCELLED` or `TIMEOUT` (the job reached its time limit).
 
 ## Run a job again
 
@@ -67,5 +92,7 @@ Each job writes to this folder of the benchmark folder:
 ```text
 SbatchMan/experiments/<cluster>/<config>/<tag>/<timestamp>/
 ```
+
+It holds the job's `stdout.log` and `stderr.log`, and one folder for each experiment. A finished job has a `data_app_0.csv` with rows in its experiment folder.
 
 Next: [Results](results.md).

@@ -4,6 +4,7 @@ Standard library and pytest only, no network. The flags come from the real `inst
 """
 
 import re
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -349,11 +350,11 @@ def test_every_docs_page_exists_with_one_h1_and_a_size_cap():
         assert len(text.splitlines()) <= PAGE_CAPS[page.stem], page.name
 
 
-def test_the_results_page_names_the_sbatchman_config_folder_of_each_system():
-    # SbatchMan builds the folder with platformdirs: it differs on macOS.
-    results = (DOCS / "results.md").read_text()
-    assert "~/.config/sbatchman/" in results
-    assert "~/Library/Application Support/sbatchman/" in results
+def test_the_connect_page_names_the_sbatchman_config_folder_of_each_system():
+    # SbatchMan builds the folder with platformdirs: it differs on macOS. Connect owns the folder paths.
+    connect = (DOCS / "connect.md").read_text()
+    assert "~/.config/sbatchman/" in connect
+    assert "~/Library/Application Support/sbatchman/" in connect
 
 
 def test_relative_links_resolve_and_anchors_match_a_heading():
@@ -693,3 +694,94 @@ def test_the_maintainer_docs_name_no_personal_word_or_forbidden_project_word():
         for word in (*words, *FORBIDDEN):
             assert word not in text, f"{word!r} in {path.name}"
         assert not FORBIDDEN_URL.search(text), path.name
+
+
+def test_the_run_page_registers_the_supported_benchmark_itself():
+    # A newcomer runs Blink from launch.md alone: the register step lives there, not in benchmarks.md.
+    launch = (DOCS / "launch.md").read_text()
+    assert launch.splitlines()[0] == "# Run a benchmark"
+    assert "## Register Blink" in launch
+    assert "crab setup" in _inside_fences(launch)
+    assert "Install or configure a supported benchmark" in launch
+    benchmarks = (DOCS / "benchmarks.md").read_text()
+    assert "## Register a supported benchmark" not in benchmarks
+    assert "Install or configure a supported benchmark" not in benchmarks
+    assert "launch.md#register-blink" in benchmarks
+    # The wizard asks for a strategy by number, and Enter picks 1 (auto-detect): the page names the option for Blink.
+    assert 'type `4` for "Download and compile from source layout"' in launch
+    assert "Enter picks `1`" in launch
+
+
+LEONARDO_MODULE_LINE = "module load gcc/12.2.0 openmpi/4.1.6--gcc--12.2.0-cuda-12.2 cuda/12.2 cmake/3.27.9"
+
+
+def test_the_run_page_gives_the_leonardo_module_line_of_the_crab_docs():
+    launch = (DOCS / "launch.md").read_text()
+    # A step indents its fence, so compare the lines without their indentation.
+    assert LEONARDO_MODULE_LINE in [line.strip() for line in _inside_fences(launch)]
+    crab_doc = ROOT / "CRAB" / "docs" / "reference" / "supported-benchmarks.md"
+    if not crab_doc.is_file():
+        pytest.skip("the CRAB submodule is not checked out")
+    assert LEONARDO_MODULE_LINE in crab_doc.read_text()
+    # The CPU config of the configs file loads the same compiler and MPI.
+    configs = (ROOT / "configs" / "leonardo.yaml").read_text()
+    assert '"gcc/12.2.0"' in configs and '"openmpi/4.1.6--gcc--12.2.0-cuda-12.2"' in configs
+
+
+def test_the_pin_check_allows_only_the_module_line_of_the_run_page(tmp_path):
+    # Module specs look like versions to tests/pins.py. Only that exact line is allowed, nothing near it.
+    import pins
+
+    docs_copy = tmp_path / "docs"
+    shutil.copytree(DOCS, docs_copy)
+    assert [p for p in pins.check(docs_copy) if p.startswith("launch.md")] == []
+    launch = docs_copy / "launch.md"
+    text = launch.read_text()
+    launch.write_text(text + "\nBuilt with gcc/12.2.0 and tag 9.9.9.\n" + LEONARDO_MODULE_LINE.replace("12.2.0", "11.1.0", 1) + "\n")
+    found = [p for p in pins.check(docs_copy) if p.startswith("launch.md")]
+    assert any(" 12.2.0 " in p for p in found), found
+    assert any(" 9.9.9 " in p for p in found), found
+    assert any(" 11.1.0 " in p for p in found), found
+
+
+def test_results_adds_fetch_dirs_to_the_saved_block():
+    # Connect saved the cluster block: Results adds fetch_dirs lines to it and shows the final file once.
+    results = (DOCS / "results.md").read_text()
+    assert "fetch_dirs" in results
+    # Exactly one `[[clusters]]` in the page, and it sits in the complete example.
+    assert results.count("[[clusters]]") == 1
+    # A step may indent the fence, so compare the lines without their indentation.
+    blocks = re.findall(r"^\s*```toml\n(.*?)^\s*```", results, flags=re.DOTALL | re.MULTILINE)
+    example = [line.strip() for line in next(block for block in blocks if "[[clusters]]" in block).splitlines()]
+    assert example.count("[[clusters]]") == 1
+    assert example.count("[global]") == 1
+    assert "[[clusters.fetch_dirs]]" in example
+    # Every line of the cluster block that Connect saves (name, host, port, user) is in the example.
+    connect = (DOCS / "connect.md").read_text()
+    saved = re.search(r"```toml\n(\[\[clusters\]\]\n.*?)```", connect, flags=re.DOTALL)
+    assert saved, "connect.md has no [[clusters]] block"
+    saved_lines = [line.strip() for line in saved.group(1).splitlines() if line.strip()]
+    assert len(saved_lines) == 5, saved_lines
+    for line in saved_lines:
+        assert line in example, f"{line!r} of the Connect block is not in the Results example"
+    # The step links to Connect for the file and its folder instead of repeating them.
+    assert "connect.md#add-the-cluster-to-sbatchman" in results
+
+
+# Each topic has one home page. The marker is a string that only the home page may hold.
+TOPIC_HOMES = {
+    # The `module purge` advice for apps with different module stacks.
+    "module purge": "benchmarks",
+    # Where the SbatchMan config folder is on each system (other pages may name the file).
+    "~/Library/Application Support/sbatchman/": "connect",
+    # The first row of the jobs-file key table.
+    "SbatchMan runs one job per value": "campaigns",
+    # The step that registers a supported benchmark through the wizard.
+    "Install or configure a supported benchmark": "launch",
+}
+
+
+def test_every_topic_has_one_home():
+    for marker, home in TOPIC_HOMES.items():
+        holders = sorted(path.stem for path in _all_docs() if marker in path.read_text())
+        assert holders == [home], f"{marker!r} is in {holders}, its home is {home}"

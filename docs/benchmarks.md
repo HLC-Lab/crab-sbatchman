@@ -2,31 +2,7 @@
 
 Register a benchmark so that jobs find its binary through a receipt. A receipt is a small file that records where the binary lives on this cluster and which modules it needs. Run the commands in a shell where you ran `source env.sh`.
 
-## Register a supported benchmark
-
-Use this for Blink, or any other benchmark that `crab setup` offers.
-
-```bash
-crab setup
-```
-
-1. Choose "Install or configure a supported benchmark".
-2. Tick the suites you need, then pick a strategy for each benchmark.
-
-The wizard asks which compiler and MPI modules to load. For a binary that is already built, it also asks for its path. Type the `module load` line your site needs at the module prompt: CRAB saves it in the receipt, so jobs load the same modules.
-
-Check the result:
-
-```bash
-crab list-benchmarks
-```
-
-The output lists each registered benchmark with its type:
-
-```text
-Installed benchmarks (1):
-  blink  (source)
-```
+To register Blink or another benchmark that `crab setup` offers, follow [Register Blink](launch.md#register-blink). The rest is for an application of your own.
 
 ## Register a new benchmark
 

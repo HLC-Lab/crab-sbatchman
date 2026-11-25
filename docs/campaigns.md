@@ -115,4 +115,4 @@ The dashboard writes the jobs file into a benchmark folder of the umbrella on th
 
 The file starts with `configs: ../../.local/configs.<cluster>.yaml`. Fill **Configs file** under **Campaign settings** only to name another configs file. A group with a shell variable such as `$CRAB_ROOT` in a wrapper attribute gets an unquoted `<<JSON` heredoc, so the shell expands it.
 
-Next: [Launch](launch.md).
+Next: [Run a benchmark](launch.md).

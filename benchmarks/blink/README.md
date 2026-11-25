@@ -1,6 +1,6 @@
 # Blink benchmarks
 
-Blink microbenchmarks that measure how much noise slows an all-to-all. Launch the jobs as in [Launch](../../docs/launch.md) and read them as in [Results](../../docs/results.md).
+Blink microbenchmarks that measure how much noise slows an all-to-all. Launch the jobs as in [Run a benchmark](../../docs/launch.md) and read them as in [Results](../../docs/results.md).
 
 | File | What it is |
 |---|---|

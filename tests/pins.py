@@ -27,6 +27,11 @@ REQUIRED = [("benchmarks.md", "crab_tag"), ("reference.md", "sbatchman"), ("trou
 ALLOWED = [
     ("troubleshooting.md", re.compile(r"Python 3\.6\.8"), "the old system Python that the installer refuses"),
     ("troubleshooting.md", re.compile(r"found 2\.0\.3,"), "a deliberate wrong value in the sample failure line"),
+    (
+        "launch.md",
+        re.compile(r"module load gcc/12\.2\.0 openmpi/4\.1\.6--gcc--12\.2\.0-cuda-12\.2 cuda/12\.2 cmake/3\.27\.9"),
+        "the Leonardo module line that CRAB's docs give for building Blink: module specs, not project pins",
+    ),
 ]
 ROOT_PAGES = ["README.md", "RELEASING.md", "CONTRIBUTING.md"]
 # A dotted version of three parts, a v-prefixed one of two or three parts, or a commit of 7 or more hex digits

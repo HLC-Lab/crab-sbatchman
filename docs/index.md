@@ -14,14 +14,14 @@ This repo, the umbrella, installs both at matching versions and ships example be
 
 ## Two ways to use it
 
-Run a benchmark that is already here: Blink is in `benchmarks/blink`, and [Register a benchmark](benchmarks.md) lists the others that `crab setup` offers.
+Run a benchmark that is already here: Blink is in `benchmarks/blink`, and [Run a benchmark](launch.md#register-blink) registers it and the others that `crab setup` offers.
 Or add your own application, with a wrapper and a jobs file.
 
 ## Reading order
 
 1. [Install](install.md): put the umbrella on the cluster and on your laptop.
 2. [Connect](connect.md): tell the dashboard and SbatchMan where the cluster is.
-3. [Launch and follow jobs](launch.md): submit the jobs of a benchmark. Blink needs [registering](benchmarks.md#register-a-supported-benchmark) first.
+3. [Run a benchmark](launch.md): submit the jobs of a benchmark. Blink needs [registering](launch.md#register-blink) first.
 4. Add your benchmark: [Register a benchmark](benchmarks.md), then [Write a campaign](campaigns.md).
 5. [Results](results.md): copy the results to your laptop and plot them.
 6. [Reference](reference.md): look up the installer options, the files of the repo and the words the docs use.

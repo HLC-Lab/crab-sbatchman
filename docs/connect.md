@@ -50,6 +50,6 @@ port = 22
 user = "<your-user>"
 ```
 
-[Results](results.md#fetch-and-plot) shows this same block with `fetch_dirs` lines and a `[global]` section added. Do not paste its second `[[clusters]]` block: add its `fetch_dirs` lines under the block you saved. Add its `[global]` section once. If the file already has a `[global]` section, edit that one.
+[Results](results.md#fetch-and-plot) tells you to add `fetch_dirs` lines under this block and a `[global]` section to the same file, and shows the finished file. Keep this block: Results adds no second one.
 
-Next: [Register a benchmark](benchmarks.md), then [Launch and follow jobs](launch.md).
+Next: [Run a benchmark](launch.md).

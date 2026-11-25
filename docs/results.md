@@ -2,11 +2,11 @@
 
 Copy the results of finished jobs to your laptop and plot them with `sbatchman visualize`.
 
-Run these steps on your laptop, installed as in [Install](install.md#install-on-your-laptop), once at least one job has finished.
+Run these steps on your laptop, installed as in [Install](install.md#install-on-your-laptop), once at least one job has finished: [Run a benchmark](launch.md#follow-the-jobs) shows how to see that.
 
 ## Fetch and plot
 
-1. Tell SbatchMan where the cluster is. Save this as `remotes-config.toml` in the SbatchMan config folder, or merge it by hand into the file if it exists. The folder is `~/.config/sbatchman/` on Linux and `~/Library/Application Support/sbatchman/` on macOS.
+1. Tell SbatchMan which folders to copy. Open the `remotes-config.toml` that [Connect](connect.md#add-the-cluster-to-sbatchman) saved, in the SbatchMan config folder named there. Under the cluster block, add one `[[clusters.fetch_dirs]]` block for each benchmark. Add the `[global]` section once. If the file already has one, edit that one. With both pages done, the file looks like this:
 
    ```toml
    [global]
@@ -24,15 +24,17 @@ Run these steps on your laptop, installed as in [Install](install.md#install-on-
    local = "<laptop-dir>/benchmarks/<benchmark>/SbatchMan"
    ```
 
-   Replace `<login-host>` and `<your-user>` with the address and username you ssh with. Replace `<umbrella-dir>` with the absolute path of the folder where you cloned the umbrella on the cluster, and `<laptop-dir>` with the one on your laptop. Add one `[[clusters.fetch_dirs]]` block for each benchmark.
+   The first lines keep rsync as the copy tool and skip folders named `scratch`. The cluster block is the one you saved, with your own address and username. In the `fetch_dirs` block, `remote` is the absolute path of the benchmark's `SbatchMan` folder on the cluster, under the folder where you cloned the umbrella. `local` is the same path under the umbrella folder on your laptop. For Blink, `<benchmark>` is `blink`.
 
-2. Copy the results. Run this in a shell where you ran `source env.sh`, and run it again after new jobs finish.
+2. Copy the results. Run this in a shell where you ran `source env.sh` and that holds your ssh agent, and run it again after new jobs finish.
 
    ```bash
    sbatchman fetch
    ```
 
-3. Go to the benchmark folder and start the plots.
+   A good result prints `✓ ? done` for each `[[clusters.fetch_dirs]]` block. The `?` stands for the block's alias, which a block without one shows as `?`. A line `✗ ? failed` means the copy failed: see the entry `✗ ? failed (rsync exit N)` in [Troubleshooting](troubleshooting.md#results). The command still exits with 0, so read its lines.
+
+3. Go to the benchmark folder and start the plots. Blink already has `parser.py` and `plots.json`, so nothing else is needed.
 
    ```bash
    cd benchmarks/<benchmark>
