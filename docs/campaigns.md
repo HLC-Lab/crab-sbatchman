@@ -7,27 +7,7 @@ A jobs file is the YAML file that SbatchMan launches: which jobs to run, on how 
 - The umbrella installed on the cluster (see [Install](install.md)), with `source env.sh` run in your shell.
 - A benchmark you can run: Blink (see [Run a benchmark](launch.md)) or your own (see [Wrap and register your benchmark](benchmarks.md)).
 
-## Add your config
-
-The jobs file names a SbatchMan config, which holds the modules and the GPUs of its jobs. Skip this section if `crab_run_{nodes}` (CPU) fits your application.
-
-1. Add a block under `configs:` in `configs/leonardo.yaml`. Edit the template, never the filled copy in `.local/`.
-
-   ```yaml
-       - name: "myapp_{nodes}"
-         nodes: "{nodes}"
-         gpus: 4                # drop this line for a CPU-only application
-         modules:
-           - "some-module"      # include one that puts mpirun on PATH
-   ```
-
-2. Refill the copy:
-
-   ```bash
-   ./install.sh
-   ```
-
-The name is what a job writes in its `config:` key. Every `nodes` value a job uses must be in the `nodes` list at the top of the template.
+The jobs file names a SbatchMan config, which holds the modules and the GPUs of its jobs. If `crab_run_{nodes}` (CPU) does not fit your application, add a config first: [Add your config](presets.md#add-your-config).
 
 ## By hand
 
@@ -106,7 +86,7 @@ The dashboard writes the same file into a benchmark folder of the umbrella on th
 1. In `crab web` on your laptop, connect the cluster as in [Connect](connect.md#add-the-cluster-in-crab-web), then open **SbatchMan**.
 2. Type the campaign name in the field next to **Save**. The file is that name in lower case with dashes, such as `myapp-scaling.yaml`.
 3. Under **Write to cluster**, pick the cluster. In **Benchmark folder**, pick a folder of `benchmarks/`, or type a new name to make one. Empty uses the first folder.
-4. In **Group**, fill **Tag**, **SbatchMan config**, **Nodes** and **Processes per node**. They write `tag`, `config`, `"numnodes"` and `"ppn"`. The config field suggests the names in `.local/configs.<cluster>.yaml`.
+4. In **Group**, fill **Tag**, **SbatchMan config**, **Nodes** and **Processes per node**. They write `tag`, `config`, `"numnodes"` and `"ppn"`. The config field suggests the names in `.local/configs.leonardo.yaml`, the one name the installer writes ([Another cluster](presets.md#another-cluster)).
 5. In the **Variables** card, press **+ Add variable** under **This group** for one group or under **Campaign-wide** for every group. Give a name and comma-separated values. They write `variables`.
 6. Under **Experiment**, press **+ Add app**, then **Choose wrapper…**, pick a wrapper and write its args. They write `"path"` and `"args"`. The app's **collect metrics**, **Starts** and **Ends** write `"collect"`, `"start"` and `"end"`. **+ Add attribute** sets a key the wrapper reads. Press **+** beside **Groups** for another group.
 7. Press **Write files**. If a problem count shows beside it, press the count to see what blocks the write. The page then shows the path it wrote.
@@ -115,6 +95,6 @@ The dashboard writes the same file into a benchmark folder of the umbrella on th
 ![The SbatchMan page with a campaign ready to write](img/dashboard-campaign.png)
 ![The write panel and the notice after a write into a new folder](img/dashboard-written.png)
 
-The file starts with `configs: ../../.local/configs.<cluster>.yaml`. Fill **Configs file** under **Campaign settings** only to name another configs file. A group with a shell variable such as `$CRAB_ROOT` in a wrapper attribute gets an unquoted `<<JSON` heredoc, so the shell expands it.
+The file starts with `configs: ../../.local/configs.leonardo.yaml`, for every cluster (see [Another cluster](presets.md#another-cluster)). Fill **Configs file** under **Campaign settings** only to name another configs file. A group with a shell variable such as `$CRAB_ROOT` in a wrapper attribute gets an unquoted `<<JSON` heredoc, so the shell expands it.
 
 Next: [Run a benchmark](launch.md).

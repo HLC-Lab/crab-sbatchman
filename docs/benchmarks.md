@@ -73,7 +73,7 @@ Record where the binary lives on this cluster. The command refuses a path that d
 crab receipts set myapp --binary /path/to/myapp --pre-run "module load openmpi"
 ```
 
-The first argument is the `benchmark_id` of the wrapper. Repeat `--pre-run` for each command to run before every launch. Add `--launcher srun` or `--launcher mpirun` to override the launcher of your preset. If the binary is on `PATH` when the job runs, add `executable = "myapp"` to the class and skip the receipt. The `modules` of the job's SbatchMan config (see [Add your config](campaigns.md#add-your-config)) and the `--pre-run` commands both apply: the config's modules load first, then each app's `--pre-run` commands run.
+The first argument is the `benchmark_id` of the wrapper. Repeat `--pre-run` for each command to run before every launch. Add `--launcher srun` or `--launcher mpirun` to override the launcher of your preset. If the binary is on `PATH` when the job runs, add `executable = "myapp"` to the class and skip the receipt. The `modules` of the job's SbatchMan config (see [Add your config](presets.md#add-your-config)) and the `--pre-run` commands both apply: the config's modules load first, then each app's `--pre-run` commands run.
 
 ### Apps built with different module stacks
 

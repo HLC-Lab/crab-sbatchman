@@ -60,5 +60,7 @@ nav:
       - benchmarks.md
       - campaigns.md
   - Results: results.md
-  - Advanced: reference.md
+  - Advanced:
+      - reference.md
+      - presets.md
   - Help: troubleshooting.md

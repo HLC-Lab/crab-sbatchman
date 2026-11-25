@@ -25,4 +25,5 @@ Or add your own application, with a wrapper and a jobs file.
 4. Add your benchmark: [Wrap and register your benchmark](benchmarks.md), then [Write the jobs file](campaigns.md).
 5. [Results](results.md): copy the results to your laptop and plot them.
 6. [Reference](reference.md): look up the installer options, the files of the repo and the words the docs use.
-7. [Troubleshooting](troubleshooting.md): find the message of a failed step and what to do about it.
+7. [Configs file](presets.md): what the fields of a Slurm config mean, and how to adapt the umbrella to another cluster.
+8. [Troubleshooting](troubleshooting.md): find the message of a failed step and what to do about it.

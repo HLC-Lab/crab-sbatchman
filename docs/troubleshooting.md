@@ -207,7 +207,7 @@ A job with the same cluster, config and tag is already in the project, in any st
 
 ### "Error: No configurations found for cluster 'leonardo'."
 
-The cluster name SbatchMan uses (`SBATCHMAN_CLUSTER_NAME`) matches no cluster block of the configs file. Keep the block named as in `site/leonardo.env`, run `./install.sh`, then `source env.sh`.
+The cluster name SbatchMan uses (`SBATCHMAN_CLUSTER_NAME`) matches no cluster block of the configs file. Name the block with the value of `SBATCHMAN_CLUSTER_NAME` in `site/local.env`, or in `site/leonardo.env` when `site/local.env` does not set it. Then run `./install.sh` and `source env.sh`.
 
 ### "Failed to submit job: Job submission failed with error code 1."
 

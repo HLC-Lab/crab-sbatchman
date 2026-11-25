@@ -46,7 +46,7 @@ A configs file describes one cluster: the Slurm partition, the quality of servic
 2. Keep the placeholders `<YOUR_ACCOUNT>`, `<SLURM_PARTITION>`, `<SLURM_QOS>` and `<CRAB_DIR>`. The installer fills them into `.local/`, which git ignores. A token in capitals that is not on this list makes it stop.
 3. Copy `site/leonardo.env` to `site/<cluster>.env` and set the partition, the quality of service and the cluster name.
 
-Today `install.sh` reads only `configs/leonardo.yaml` and `site/leonardo.env`. The files for a second cluster are not read until the installer takes the cluster name as a variable.
+Today `install.sh` reads only `configs/leonardo.yaml` and `site/leonardo.env`. The files for a second cluster are not read until the installer takes the cluster name as a variable. A partner who runs another cluster in their own checkout reads [Another cluster](docs/presets.md#another-cluster).
 
 Never write a real account, user name or host name in a tracked file.
 

@@ -1,6 +1,6 @@
 """Guards README.md and docs/*.md: size, links, install.sh flags, repo paths, placeholders, forbidden text.
 
-Standard library and pytest only, no network. The flags come from the real `install.sh --help`.
+Standard library, PyYAML and pytest only, no network. The flags come from the real `install.sh --help`.
 """
 
 import importlib.util
@@ -12,6 +12,7 @@ import textwrap
 from pathlib import Path
 
 import pytest
+import yaml
 
 from forbidden import forbidden_or_skip
 
@@ -19,7 +20,7 @@ ROOT = Path(__file__).resolve().parent.parent
 README = ROOT / "README.md"
 DOCS = ROOT / "docs"
 
-PAGES = ["index", "install", "connect", "benchmarks", "campaigns", "launch", "results", "troubleshooting", "reference"]
+PAGES = ["index", "install", "connect", "benchmarks", "campaigns", "launch", "results", "troubleshooting", "reference", "presets"]
 PAGE_PATHS = [DOCS / f"{name}.md" for name in PAGES]
 # The README fails above README_MAX_LINES; README_TARGET_LINES is the length the owner wants.
 README_MAX_LINES = 60
@@ -34,6 +35,7 @@ PAGE_CAPS = {
     "results": 100,
     "troubleshooting": 300,
     "reference": 300,
+    "presets": 120,
 }
 
 # Words and phrases the prose never uses (whole words, any case). See "Writing docs" in the style guide.
@@ -658,6 +660,7 @@ def test_the_page_caps_hold_and_never_loosen():
         "results": 100,
         "troubleshooting": 300,
         "reference": 300,
+        "presets": 120,
     }
     assert set(PAGE_CAPS) == set(PAGES)
 
@@ -868,3 +871,161 @@ def test_the_dashboard_section_does_not_repeat_the_key_table():
     dashboard = _section(text, "In the dashboard")
     assert "| Key | Meaning |" not in dashboard
     assert "](#change-the-keys)" in dashboard
+
+
+def _table_rows(text: str, first_header: str) -> list[list[str]]:
+    """The body rows of every table whose header row starts with `| first_header |`, as lists of cells."""
+    rows = []
+    inside = False
+    for line in _outside_fences(text):
+        if line.startswith(f"| {first_header} |"):
+            inside = True
+            continue
+        if inside and line.startswith("|"):
+            cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+            if not set(cells[0]) <= set("-: "):
+                rows.append(cells)
+        else:
+            inside = False
+    return rows
+
+
+def _documented_fields(text: str) -> set[str]:
+    """The first-cell code spans of the field tables of the presets page."""
+    return {
+        match.group(1) for cells in _table_rows(text, "Field") if (match := re.fullmatch(r"`([^`]+)`", cells[0]))
+    }
+
+
+def _shipped_config_keys() -> set[str]:
+    """Every key the shipped template uses: the top-level keys, those of the cluster block, its default_conf
+    and each config entry. The cluster's own name is a value chosen by the user, not a field."""
+    doc = yaml.safe_load((ROOT / "configs" / "leonardo.yaml").read_text())
+    keys: set[str] = set()
+    for name, block in doc.items():
+        if not (isinstance(block, dict) and "scheduler" in block):
+            keys.add(name)
+            continue
+        keys |= set(block)
+        keys |= set(block.get("default_conf", {}))
+        for entry in block.get("configs", []):
+            keys |= set(entry)
+    return keys
+
+
+# The Slurm fields of a config, copied BY HAND from SbatchMan 2.0.4 (`create_slurm_config` in core/config_manager.py,
+# `SlurmConfig` in schedulers/slurm.py). Nothing checks this tuple against SbatchMan: when SbatchMan is bumped,
+# compare it with those two places again and update it and docs/presets.md together.
+SLURM_FIELDS = (
+    "partition", "nodes", "ntasks", "tasks_per_node", "cpus_per_task", "mem", "account", "time", "gpus",
+    "constraint", "nodelist", "exclude", "qos", "reservation", "exclusive", "modules", "env", "custom_headers",
+)  # fmt: skip
+
+
+def test_the_presets_page_documents_every_config_field():
+    # A key of the shipped template that the field table never names is an undocumented field.
+    keys = _shipped_config_keys()
+    assert {"variables", "scheduler", "default_conf", "configs", "name", "nodes", "modules", "env"} <= keys
+    assert "leonardo" not in keys
+    documented = _documented_fields((DOCS / "presets.md").read_text())
+    assert sorted(keys - documented) == []
+
+
+def test_the_presets_page_documents_every_slurm_field_in_the_hand_copied_list():
+    documented = _documented_fields((DOCS / "presets.md").read_text())
+    assert sorted(set(SLURM_FIELDS) - documented) == []
+
+
+def test_the_variables_path_rows_say_relative_paths_are_read_from_the_filled_copy():
+    # SbatchMan resolves a relative path from the folder of the file it loads: in the umbrella flow that is the
+    # filled copy in `.local/`, not the template in `configs/`. A bare file name in an example would not be found.
+    text = (DOCS / "presets.md").read_text()
+    rows = {cells[0]: cells for cells in _table_rows(text, "Field")}
+    for field in ("`variables`", "`include_variables`"):
+        assert "read from `.local/`" in rows[field][1], field
+    assert "../configs/" in rows["`include_variables`"][2]
+    assert "../configs/nodes.txt" in rows["`variables`"][1]
+
+
+def test_every_field_row_tells_the_meaning_an_example_the_default_and_whether_it_is_required():
+    text = (DOCS / "presets.md").read_text()
+    assert "| Field | Meaning | Example | Default | Required |" in text
+    rows = _table_rows(text, "Field")
+    assert len(rows) >= len(SLURM_FIELDS) + 5, len(rows)
+    for cells in rows:
+        assert len(cells) == 5, cells
+        assert all(cells), cells
+        assert re.fullmatch(r"`[^`]+`", cells[0]), cells
+        assert re.fullmatch(r"`[^`]+`", cells[2]), cells
+        assert cells[4] in {"yes", "no"}, cells
+    # SbatchMan stops without a config's `name` and without the cluster's `scheduler`: nothing else is required.
+    required = sorted(cells[0] for cells in rows if cells[4] == "yes")
+    assert required == ["`name`", "`scheduler`"], required
+
+
+def test_the_presets_page_names_the_four_tokens_that_install_sh_fills():
+    script = (ROOT / "install.sh").read_text()
+    tokens = set(re.findall(r"token_\w+='<([A-Z_]+)>'", script))
+    assert len(tokens) == 4, tokens
+    section = _section((DOCS / "presets.md").read_text(), "Tokens the installer fills")
+    for token in tokens:
+        assert f"`{token}`" in section, token
+
+
+def test_the_presets_example_adds_a_config_with_documented_fields_only():
+    text = (DOCS / "presets.md").read_text()
+    blocks = _fenced_blocks(_section(text, "Add your config"), "yaml")
+    assert len(blocks) == 1, len(blocks)
+    entries = yaml.safe_load(blocks[0])
+    assert isinstance(entries, list) and len(entries) == 1
+    entry = entries[0]
+    assert "{nodes}" in entry["name"]
+    assert set(entry) <= _documented_fields(text), set(entry) - _documented_fields(text)
+    # The name uses the template's `nodes` variable, so the template must define it.
+    assert "nodes" in yaml.safe_load((ROOT / "configs" / "leonardo.yaml").read_text())["variables"]
+
+
+def test_add_your_config_has_one_home():
+    # The section moved from the jobs-file page to the configs-file page: one copy, and a link from the old place.
+    heading = re.compile(r"^#{1,6} Add your config\s*$", re.MULTILINE)
+    assert [path.stem for path in _all_docs() if heading.search(path.read_text())] == ["presets"]
+    campaigns = (DOCS / "campaigns.md").read_text()
+    assert "](presets.md#add-your-config)" in campaigns
+    assert "campaigns.md#add-your-config" not in "\n".join(path.read_text() for path in _all_docs())
+    # The rule that the template is edited and the filled copy is not is written once, on the configs-file page.
+    holders = sorted(path.stem for path in _all_docs() if "never the filled copy" in path.read_text())
+    assert holders == ["presets"], holders
+
+
+def test_the_presets_page_has_the_another_cluster_section_and_does_not_edit_the_installer():
+    section = _section((DOCS / "presets.md").read_text(), "Another cluster")
+    assert 12 <= len(section.splitlines()) <= 40, len(section.splitlines())
+    for name in (
+        "configs/leonardo.yaml",
+        "site/leonardo.env",
+        "site/local.env",
+        ".local/configs.leonardo.yaml",
+        "SBATCHMAN_CLUSTER_NAME",
+        "remotes-config.toml",
+        "sacctmgr",
+        "crab_run_{nodes}",
+        "launch.md#register-blink",
+    ):
+        assert name in section, name
+    # What the section says the installer reads is what the installer reads. If the installer ever takes the
+    # cluster name as a variable, these fail and the section needs rewriting with it.
+    script = (ROOT / "install.sh").read_text()
+    for line in (
+        'TEMPLATE="$ROOT/configs/leonardo.yaml"',
+        'TARGET="$ROOT/.local/configs.leonardo.yaml"',
+        '[[ -f "$ROOT/site/leonardo.env" ]] && source "$ROOT/site/leonardo.env"',
+        'cluster_name="${SBATCHMAN_CLUSTER_NAME:-leonardo}"',
+    ):
+        assert line in script, line
+    assert "is not read" in section
+    # The Leonardo-specific entries the section sends the reader to change are in the shipped template.
+    template = (ROOT / "configs" / "leonardo.yaml").read_text()
+    for entry in ("CRAB_SYSTEM", "CRAB_IB_DEVICES", "UCX_IB_SL", "NCCL_IB_SL", 'name: "crab_run_{nodes}"'):
+        assert entry in template, entry
+    for entry in ("CRAB_SYSTEM", "CRAB_IB_DEVICES", "UCX_IB_SL", "NCCL_IB_SL"):
+        assert entry in section, entry
