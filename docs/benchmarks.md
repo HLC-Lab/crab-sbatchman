@@ -93,13 +93,6 @@ crab wrappers list
 
 The line of `myapp/myapp.py` ends with the binary the jobs will use, here `binary receipt: /path/to/myapp`. `binary missing` means no receipt, `binary` key or `PATH` entry matches. Then run `crab list-benchmarks`: it lists `myapp  (binary)`.
 
-## Give the benchmark folder a `parser.py`
-
-`sbatchman visualize` reads `./parser.py` of the folder you start it from.
-
-```bash
-mkdir -p benchmarks/<benchmark>
-ln -s ../parser.py benchmarks/<benchmark>/parser.py
-```
+To plot the results of this benchmark later, its folder needs a `parser.py`: [Use the shared parser](plots.md#use-the-shared-parser) gives it.
 
 Next: [Write the jobs file](campaigns.md).

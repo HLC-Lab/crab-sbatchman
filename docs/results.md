@@ -60,20 +60,4 @@ Each app has one table: `app_0` for the first app, `app_1` for the second, and s
 
 A job appears when its status is `COMPLETED`, `FAILED`, `TIMEOUT` or `CHECK_FAIL`. Running, queued and cancelled jobs do not.
 
-Use the page's plot builder to draw other plots from these tables. SQL needs double quotes around a column name that starts with a digit or contains a dash:
-
-```sql
-SELECT "0_Avg-Duration_s" FROM app_0
-```
-
-## Plot a benchmark of your own
-
-The laptop folder `benchmarks/<benchmark>` needs a SbatchMan project: `sbatchman fetch` creates its `SbatchMan/` folder from the `local` path of the benchmark's `[[clusters.fetch_dirs]]` block. It also needs a `parser.py`, and optionally a `plots.json`. After the fetch, link the shipped parser from the umbrella folder:
-
-```bash
-ln -s ../parser.py benchmarks/<benchmark>/parser.py
-```
-
-Without `parser.py`, `sbatchman visualize` stops with `Parser script not found:`. Without `plots.json`, the page opens with no saved plots and you build them in the plot builder.
-
-A wrapper's metrics land in the table of its app, which exists when the app has `"collect": true`. The columns are `run_id`, `msg_size`, one for each wrapper key, then one for each metric, named with the app number, the metric and its unit: the metric `latency` in `us` of app 0 is `0_latency_us`.
+Use the page's plot builder to draw other plots from these tables. [Plots of your own](plots.md) covers the SQL, the saved plots, and the `parser.py` of a benchmark of your own.

@@ -251,17 +251,13 @@ sbatchman status
 
 ### "Parser script not found:"
 
-`sbatchman visualize` reads `./parser.py`, and only the benchmark folders hold it. Go into one, then start `sbatchman visualize` again:
+The folder you started `sbatchman visualize` in has no `parser.py`. Go into a benchmark folder, then start it again:
 
 ```bash
 cd benchmarks/<benchmark>
 ```
 
-A folder you made yourself has no `parser.py` yet. Link the shared one into it:
-
-```bash
-ln -s ../parser.py parser.py
-```
+A folder you made yourself needs one: [Use the shared parser](plots.md#use-the-shared-parser) links it.
 
 ### "✗ ? failed (rsync exit N)"
 

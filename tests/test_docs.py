@@ -5,11 +5,13 @@ Standard library, PyYAML and pytest only, no network. The flags come from the re
 
 import importlib.util
 import json
+import os
 import re
 import shutil
 import subprocess
 import textwrap
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 import yaml
@@ -20,7 +22,7 @@ ROOT = Path(__file__).resolve().parent.parent
 README = ROOT / "README.md"
 DOCS = ROOT / "docs"
 
-PAGES = ["index", "install", "connect", "benchmarks", "campaigns", "launch", "results", "troubleshooting", "reference", "presets"]
+PAGES = ["index", "install", "connect", "benchmarks", "campaigns", "launch", "results", "troubleshooting", "reference", "presets", "plots"]
 PAGE_PATHS = [DOCS / f"{name}.md" for name in PAGES]
 # The README fails above README_MAX_LINES; README_TARGET_LINES is the length the owner wants.
 README_MAX_LINES = 60
@@ -36,6 +38,7 @@ PAGE_CAPS = {
     "troubleshooting": 300,
     "reference": 300,
     "presets": 120,
+    "plots": 120,
 }
 
 # Words and phrases the prose never uses (whole words, any case). See "Writing docs" in the style guide.
@@ -661,6 +664,7 @@ def test_the_page_caps_hold_and_never_loosen():
         "troubleshooting": 300,
         "reference": 300,
         "presets": 120,
+        "plots": 120,
     }
     assert set(PAGE_CAPS) == set(PAGES)
 
@@ -1029,3 +1033,159 @@ def test_the_presets_page_has_the_another_cluster_section_and_does_not_edit_the_
         assert entry in template, entry
     for entry in ("CRAB_SYSTEM", "CRAB_IB_DEVICES", "UCX_IB_SL", "NCCL_IB_SL"):
         assert entry in section, entry
+
+
+PLOTS = DOCS / "plots.md"
+SHIPPED_PLOTS = ROOT / "benchmarks" / "blink" / "plots.json"
+# The eight plot types of SbatchMan, copied BY HAND from its register_plot(...) calls (the same list as PLOT_TYPES in
+# tests/test_plots.py). Nothing checks it against SbatchMan: when SbatchMan is bumped, compare again.
+PLOT_TYPES = ("line", "bar", "scatter", "histogram", "box", "violin", "heatmap", "pie")
+# What the page tells the reader about a job, copied BY HAND from `Job` in sbatchman/core/job.py (fields and methods).
+JOB_FIELDS = ("job.status", "job.tag", "job.config_name", "job.cluster_name", "job.job_id", "job.variables", "job.get_job_base_path()")  # fmt: skip
+
+
+def _json_keys(value) -> set[str]:
+    """Every key of a parsed JSON value, at any depth."""
+    keys: set[str] = set()
+    if isinstance(value, dict):
+        for key, item in value.items():
+            keys.add(key)
+            keys |= _json_keys(item)
+    elif isinstance(value, list):
+        for item in value:
+            keys |= _json_keys(item)
+    return keys
+
+
+def _code_spans(text: str) -> set[str]:
+    """The inline code spans of the prose (fenced blocks left out)."""
+    return set(re.findall(r"`([^`\n]+)`", "\n".join(_outside_fences(text))))
+
+
+def test_the_plots_page_names_every_key_of_the_shipped_plots_json():
+    keys = _json_keys(json.loads(SHIPPED_PLOTS.read_text()))
+    assert {"version", "activeTabIndex", "tabs", "sql", "plotType", "x", "y", "group", "style", "script_paths"} <= keys
+    assert sorted(keys - _code_spans(PLOTS.read_text())) == []
+
+
+def test_the_plots_page_lists_the_plot_types_and_the_job_fields_of_a_parser():
+    text = PLOTS.read_text()
+    assert sorted(set(PLOT_TYPES) - _code_spans(text)) == []
+    assert [name for name in JOB_FIELDS if f"`{name}`" not in text] == []
+
+
+def test_the_plots_page_names_the_functions_of_the_shared_parser():
+    parser = (ROOT / "benchmarks" / "parser.py").read_text()
+    text = PLOTS.read_text()
+    # `parse(job)` is the one name SbatchMan calls: the page documents it and the shared parser defines it.
+    assert re.search(r"^def parse\(job\):", parser, flags=re.MULTILINE)
+    assert "`parse(job)`" in text
+    assert "`benchmarks/parser.py`" in text
+    # The symlink pattern the page gives is the one the shipped Blink folder uses.
+    link = ROOT / "benchmarks" / "blink" / "parser.py"
+    assert link.is_symlink() and os.readlink(link) == "../parser.py"
+    assert "ln -s ../parser.py benchmarks/<benchmark>/parser.py" in [line.strip() for line in _inside_fences(text)]
+
+
+def test_the_plots_page_example_entry_is_the_first_plot_of_the_blink_file():
+    section = _section(PLOTS.read_text(), "The plots.json file")
+    blocks = _fenced_blocks(section, "json")
+    assert len(blocks) == 1, len(blocks)
+    assert json.loads(blocks[0]) == json.loads(SHIPPED_PLOTS.read_text())["tabs"][0]
+
+
+def test_parser_and_plots_topics_have_one_home():
+    # The two sections moved to the plots page: the old headings are gone, each old place points at the new page.
+    results = (DOCS / "results.md").read_text()
+    benchmarks = (DOCS / "benchmarks.md").read_text()
+    assert not re.search(r"^#{1,6} Plot a benchmark of your own\s*$", results, flags=re.MULTILINE)
+    assert not re.search(r"^#{1,6} Give the benchmark folder a `parser.py`\s*$", benchmarks, flags=re.MULTILINE)
+    assert "](plots.md" in results and "](plots.md" in benchmarks
+    markers = (
+        "Without `plots.json`, the page opens with no saved plots and you build them in the plot builder.",
+        "reads `./parser.py` of the folder you start it from",
+        "SQL needs double quotes around a column name that starts with a digit or contains a dash",
+        "ln -s ../parser.py benchmarks/<benchmark>/parser.py",
+    )
+    for marker in markers:
+        holders = sorted(path.stem for path in _all_docs() if marker in path.read_text())
+        assert holders == ["plots"], f"{marker!r} is in {holders}"
+    # The troubleshooting entry for the missing parser keeps its message and one cause, and links to the home.
+    for gone in ("ln -s ../parser.py parser.py", "reads `./parser.py`, and only the benchmark folders hold it"):
+        assert [path.stem for path in _all_docs() if gone in path.read_text()] == [], gone
+    entry = _section((DOCS / "troubleshooting.md").read_text(), "Results").split('### "Parser script not found:"')[1]
+    assert "](plots.md#use-the-shared-parser)" in entry.split("\n### ", 1)[0]
+
+
+def test_the_plots_page_example_runs(tmp_path):
+    # The example avoids importing SbatchMan: a job is any object with the fields the page lists, so nothing is skipped.
+    section = _section(PLOTS.read_text(), "Write a parser of your own")
+    code = _fenced_blocks(section, "python")[0]
+    assert 10 <= len(code.splitlines()) <= 20, len(code.splitlines())
+    assert "sbatchman" not in code
+    job_folder = tmp_path / "job"
+    job_folder.mkdir()
+    (job_folder / "times.csv").write_text(_fenced_blocks(section, "csv")[0])
+    path = tmp_path / "parser.py"
+    path.write_text(code)
+    spec = importlib.util.spec_from_file_location("page_example_parser", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    def job(status="COMPLETED", base=job_folder):
+        return SimpleNamespace(
+            status=status, tag="myapp-smoke", config_name="myapp_2", variables={"nodes": 2}, get_job_base_path=lambda: base
+        )
+
+    rows = module.parse(job())["myapp"]
+    shown = next(block for block in _fenced_blocks(section, "text") if "iteration" in block).splitlines()
+    assert shown[0].split() == list(rows[0])
+    assert [line.split() for line in shown[1:]] == [[str(value) for value in row.values()] for row in rows]
+    # A job that did not complete, or whose folder has no times.csv, adds no rows.
+    assert module.parse(job("RUNNING")) is None
+    assert module.parse(job(base=tmp_path)) is None
+
+
+# Keys that SbatchMan's plot builder writes (`getNodeConfig` in sbatchman/visualize/static/config.js) and that the Blink
+# file does not use. The page must name them, so a reader can find `z` for a heatmap. Copied BY HAND: nothing checks it
+# against SbatchMan, so compare it again when SbatchMan is bumped.
+BUILDER_KEYS_OUTSIDE_BLINK = ("z", "markerBy", "dashBy", "xScale", "yScale", "legendPosition", "extra")
+
+
+def test_the_plots_page_names_the_builder_keys_outside_the_blink_file_and_the_keys_of_each_plot_type():
+    text = PLOTS.read_text()
+    assert sorted(set(BUILDER_KEYS_OUTSIDE_BLINK) - _code_spans(text)) == []
+    # One sentence says which keys each plot type needs (read from the plot functions of SbatchMan's utils/plots.py).
+    needs = next(line for line in text.splitlines() if line.startswith("`line`, `bar` and `scatter` need"))
+    for plot_type in PLOT_TYPES:
+        assert f"`{plot_type}`" in needs, plot_type
+    assert "`heatmap` needs `x`, `y` and `z`" in needs
+
+
+def test_the_plots_page_gets_the_reader_from_a_parser_to_plots_without_pitfalls():
+    text = PLOTS.read_text()
+    # Saving a file over the symlink overwrites the shared parser: the page removes the link first, before the code.
+    section = _section(text, "Write a parser of your own")
+    assert "rm benchmarks/<benchmark>/parser.py" in [line.strip() for line in _inside_fences(section)]
+    assert section.index("rm benchmarks/<benchmark>/parser.py") < section.index("```python")
+    assert "overwrites the shared `benchmarks/parser.py`" in section
+    # A job reaches its job folder through $SBATCHMAN_JOB_DIR, which the jobs-file page documents.
+    assert "`$SBATCHMAN_JOB_DIR`" in section and "](campaigns.md#change-the-keys)" in section
+    assert "$SBATCHMAN_JOB_DIR" in _section((DOCS / "campaigns.md").read_text(), "By hand")
+    # The address to open, as on the results page.
+    assert "`http://127.0.0.1:8765`" in text and "http://127.0.0.1:8765" in (DOCS / "results.md").read_text()
+    # An export writes the user's own script folders into the file.
+    assert "delete the entries that name your own folders before you commit `plots.json`" in text
+    # The contract: falsy returns skip the job, and a wrong table value stops the run.
+    assert "any other falsy value" in text and "something other than a row or a list of rows in a table" in text
+    # Why a page opens empty with a plots.json present.
+    empty = next(line for line in text.splitlines() if line.startswith("- The page opens empty although `plots.json` is there"))
+    assert "`Failed to load`" in empty and "`--presets`" in empty and "Only `./plots.json`" in empty
+
+
+def test_the_advanced_section_lists_reference_configs_and_plots():
+    nav = yaml.safe_load((ROOT / "mkdocs.yml").read_text())["nav"]
+    advanced = next(entry["Advanced"] for entry in nav if isinstance(entry, dict) and "Advanced" in entry)
+    assert advanced == ["reference.md", "presets.md", "plots.md"]
+    assert "](plots.md" in (DOCS / "index.md").read_text()

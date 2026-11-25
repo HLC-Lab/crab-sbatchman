@@ -26,4 +26,5 @@ Or add your own application, with a wrapper and a jobs file.
 5. [Results](results.md): copy the results to your laptop and plot them.
 6. [Reference](reference.md): look up the installer options, the files of the repo and the words the docs use.
 7. [Configs file](presets.md): what the fields of a Slurm config mean, and how to adapt the umbrella to another cluster.
-8. [Troubleshooting](troubleshooting.md): find the message of a failed step and what to do about it.
+8. [Plots of your own](plots.md): write the `parser.py` and the `plots.json` of a benchmark of your own.
+9. [Troubleshooting](troubleshooting.md): find the message of a failed step and what to do about it.

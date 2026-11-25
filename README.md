@@ -23,3 +23,4 @@ git clone --recurse-submodules https://github.com/HLC-Lab/crab-sbatchman.git
 | [Troubleshooting](docs/troubleshooting.md) | What do I do when something fails? |
 | [Reference](docs/reference.md) | Which files are in the repo, and which can I change? |
 | [Configs file](docs/presets.md) | What do the fields of a Slurm config mean, and how do I use another cluster? |
+| [Plots of your own](docs/plots.md) | How do I write the `parser.py` and the `plots.json` for my own benchmark? |

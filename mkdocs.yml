@@ -63,4 +63,5 @@ nav:
   - Advanced:
       - reference.md
       - presets.md
+      - plots.md
   - Help: troubleshooting.md
