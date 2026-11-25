@@ -20,11 +20,12 @@ Run these steps on your laptop, installed as in [Install](install.md#install-on-
    user = "<your-user>"
 
    [[clusters.fetch_dirs]]
+   alias = "<benchmark>"
    remote = "<umbrella-dir>/benchmarks/<benchmark>/SbatchMan"
    local = "<laptop-dir>/benchmarks/<benchmark>/SbatchMan"
    ```
 
-   The first lines keep rsync as the copy tool and skip folders named `scratch`. The cluster block is the one you saved, with your own address and username. In the `fetch_dirs` block, `remote` is the absolute path of the benchmark's `SbatchMan` folder on the cluster, under the folder where you cloned the umbrella. `local` is the same path under the umbrella folder on your laptop. For Blink, `<benchmark>` is `blink`.
+   The first lines keep rsync as the copy tool and skip folders named `scratch`. The cluster block is the one you saved, with your own address and username. In the `fetch_dirs` block, `alias` is a name for that folder: `sbatchman fetch` prints it, and the plot page lists it under "Fetch from remote". `remote` is the absolute path of the benchmark's `SbatchMan` folder on the cluster, under `<umbrella-dir>`. `local` is the same path on your laptop, under `<laptop-dir>`. [Connect](connect.md) defines both folders and says how to print their full paths. For Blink, `<benchmark>` is `blink`.
 
 2. Copy the results. Run this in a shell where you ran `source env.sh` and that holds your ssh agent, and run it again after new jobs finish.
 
@@ -32,18 +33,20 @@ Run these steps on your laptop, installed as in [Install](install.md#install-on-
    sbatchman fetch
    ```
 
-   A good result prints `✓ ? done` for each `[[clusters.fetch_dirs]]` block. The `?` stands for the block's alias, which a block without one shows as `?`. A line `✗ ? failed` means the copy failed: see the entry `✗ ? failed (rsync exit N)` in [Troubleshooting](troubleshooting.md#results). The command still exits with 0, so read its lines.
+   A good result prints `✓ <benchmark> done` for each `[[clusters.fetch_dirs]]` block: the name is the block's `alias`, and a block without one shows `?`. A line `✗ <benchmark> failed` means the copy failed: see the entry `✗ ? failed (rsync exit N)` in [Troubleshooting](troubleshooting.md#results). The command still exits with 0, so read its lines.
 
-3. Go to the benchmark folder and start the plots. Blink already has `parser.py` and `plots.json`, so nothing else is needed.
+3. Go to the benchmark folder and start the plots. Blink already has `parser.py` and `plots.json`, so nothing else is needed. For a benchmark of your own, link `parser.py` before this step ([Use the shared parser](plots.md#use-the-shared-parser)): without it the command stops with `Parser script not found:`.
 
    ```bash
-   cd benchmarks/<benchmark>
+   cd <laptop-dir>/benchmarks/<benchmark>
    sbatchman visualize
    ```
 
+   A block without `alias` makes the start print `[WARN] No remote systems config: 'alias'`. The page then shows an empty "Fetch from remote" list for every cluster, not only for that block. The warning is harmless, because the plots and `sbatchman fetch` do not use that list. Add the `alias` line of step 1 to remove it.
+
 4. Open `http://127.0.0.1:8765`.
 
-The port is fixed. `crab web` serves on 8899 after `source env.sh`, so you can run both.
+The port is fixed at 8765, and `sbatchman visualize` has no option to change it. `crab web` serves on 8899 after `source env.sh`, so you can run both. If another program holds 8765, the command stops: [Troubleshooting](troubleshooting.md#sbatchman-visualize-does-not-start-because-port-8765-is-in-use) shows the error and how to find that program.
 
 ## What you see
 
@@ -59,5 +62,7 @@ Each app has one table: `app_0` for the first app, `app_1` for the second, and s
 - One column for each variable of the job, named `var_` plus the variable, such as `var_nodes`.
 
 A job appears when its status is `COMPLETED`, `FAILED`, `TIMEOUT` or `CHECK_FAIL`. Running, queued and cancelled jobs do not.
+
+If the fetched jobs have not finished yet, `sbatchman visualize` still starts, but the tables `app_0` and so on do not exist, so the plots of Blink have no data until a job has finished. The umbrella ships no sample results for you to try the plots on: the plots need your own finished jobs. [Run a benchmark](launch.md) starts jobs, and `sbatchman fetch` copies them once they finish.
 
 Use the page's plot builder to draw other plots from these tables. [Plots of your own](plots.md) covers the SQL, the saved plots, and the `parser.py` of a benchmark of your own.

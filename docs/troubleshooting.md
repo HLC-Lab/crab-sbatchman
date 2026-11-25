@@ -239,7 +239,23 @@ Then launch again with `--force`.
 
 ### `sbatchman visualize` does not start because port 8765 is in use
 
-Another program listens on the port, and `sbatchman visualize` cannot change its port. Stop that program. If it is `crab web`, start it again from a shell where you ran `source env.sh`: it then uses port 8899.
+The command prints a long Python error in a box. On Linux its last line is `OSError: [Errno 98] Address already in use`. Another program listens on port 8765, and `sbatchman visualize` has no option to change its port. List the programs that hold it:
+
+```bash
+lsof -nP -i :8765
+```
+
+`-i :8765` selects the port. `-n` and `-P` keep numbers instead of host and service names. A good result is a table whose `COMMAND` and `PID` columns name the program, with `LISTEN` in its last column.
+
+A Linux machine without `lsof` has `ss`:
+
+```bash
+ss -ltnp 'sport = :8765'
+```
+
+`-l` lists listening sockets, `-t` only TCP, `-n` keeps numbers and `-p` adds the program. A good result is a `LISTEN` line for port 8765 that ends with `users:` and the program's name.
+
+Without root, `lsof` and `ss` show only your own programs. `lsof` prints nothing for a program of another user, and `ss` shows the `LISTEN` line without `users:`. Then ask the administrator of that machine, or restart it. Otherwise stop the program, then start `sbatchman visualize` again. If it is `crab web`, start it again from a shell where you ran `source env.sh`: it then uses port 8899.
 
 ### The page opens with no data or no plots
 
@@ -254,14 +270,14 @@ sbatchman status
 The folder you started `sbatchman visualize` in has no `parser.py`. Go into a benchmark folder, then start it again:
 
 ```bash
-cd benchmarks/<benchmark>
+cd <laptop-dir>/benchmarks/<benchmark>
 ```
 
 A folder you made yourself needs one: [Use the shared parser](plots.md#use-the-shared-parser) links it.
 
 ### "✗ ? failed (rsync exit N)"
 
-`sbatchman fetch` prints this for a `[[clusters.fetch_dirs]]` block without an `alias`, so the name shows as `?`. rsync prints its reason in the lines before it. Check that `ssh <your-user>@<login-host>` works from the same shell and that `remote` is a folder that exists on the cluster. Login nodes rotate, and a node that answers with a new host key stops the fetch the same way.
+`sbatchman fetch` prints this for a `[[clusters.fetch_dirs]]` block that failed. The `?` is the block's `alias`, which a block without one shows as `?`. rsync prints its reason in the lines before it. Check that `ssh <your-user>@<login-host>` works from the same shell and that `remote` is a folder that exists on the cluster. Login nodes rotate, and a node that answers with a new host key stops the fetch the same way.
 
 ### "parser: ...: file skipped (no data rows)"
 
