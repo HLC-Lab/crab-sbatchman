@@ -12,6 +12,11 @@ Install the umbrella twice: on the cluster login node, where the jobs run, and o
 
 ## Install on the cluster
 
+The login node needs two things before you start:
+
+- Python 3.11 or newer. After `module load python`, run `python3 --version`. A good result is `Python 3.11.x` or a higher number. With an older one the installer stops at once and says which version it found.
+- Outbound https access. `git clone` and the submodule update fetch from `github.com`, and `pip` downloads the packages from the Python package index. If your login node cannot reach them, the install stops there; for the `pip` part see `--offline` in [Reference](reference.md#installsh).
+
 On a login node:
 
 ```bash
@@ -38,6 +43,8 @@ cd crab-sbatchman
 ./install.sh --role laptop
 source env.sh
 ```
+
+The install prints hundreds of lines while it works, including warnings that are normal. Wait until the prompt returns, then look for the pass line `install.sh: all checks passed`. After it come `install.sh finished: role laptop` and `Next: source env.sh`. A failed run has `FAIL` lines for the checks that failed, then `install.sh: N check(s) failed` in place of the pass line, where N is a number. `Next: source env.sh` prints even then, so it is not a sign of a pass. For a failure, see [Troubleshooting](troubleshooting.md).
 
 `crab web` serves the dashboard on port 8899. `sbatchman visualize` serves the result plots on port 8765.
 

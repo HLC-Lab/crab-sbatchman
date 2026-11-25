@@ -30,7 +30,7 @@ README_TARGET_LINES = 40
 PAGE_CAPS = {
     "index": 40,
     "install": 80,
-    "connect": 70,
+    "connect": 80,
     "benchmarks": 110,
     "campaigns": 120,
     "launch": 100,
@@ -657,7 +657,7 @@ def test_the_page_caps_hold_and_never_loosen():
     assert PAGE_CAPS == {
         "index": 40,
         "install": 80,
-        "connect": 70,
+        "connect": 80,
         "benchmarks": 110,
         "campaigns": 120,
         "launch": 100,

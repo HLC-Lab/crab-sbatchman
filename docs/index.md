@@ -12,6 +12,8 @@ This repo, the umbrella, installs both at matching versions and ships example be
 - Python 3.11 or newer on the cluster and on the laptop.
 - git on both.
 
+Another Slurm cluster can use the umbrella too. You edit two files and keep the rest, so it takes less work than the Leonardo setup. See [Another cluster](presets.md#another-cluster).
+
 ## Two ways to use it
 
 Run a benchmark that is already here: Blink is in `benchmarks/blink`, and [Run a benchmark](launch.md#register-blink) registers it and the others that `crab setup` offers.
