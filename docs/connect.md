@@ -1,6 +1,6 @@
 # Connect the laptop to the cluster
 
-The cluster is registered in two places, because two tools use it. The dashboard keeps its own cluster profile: it browses the cluster, writes jobs files there and shows the state of your jobs. SbatchMan reads `remotes-config.toml` and uses it to copy the results to your laptop; the dashboard does not write that file.
+The cluster is registered in two places, because two tools use it. The dashboard keeps its own cluster profile: it browses the wrappers on the cluster and writes jobs files there. It does not launch jobs or show their state; SbatchMan does that on the cluster. SbatchMan reads `remotes-config.toml` and uses it to copy the results to your laptop; the dashboard does not write that file.
 
 Both need the same three values: the address you ssh to, your username there and the port. Replace `<login-host>` with the address and `<your-user>` with the username. Both also need a name for the cluster, a label you choose. The examples use `leonardo`. Install the umbrella on the cluster and on your laptop first, as in [Install](install.md).
 

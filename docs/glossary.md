@@ -8,7 +8,7 @@ The words the docs use for the parts of the setup, in alphabetical order. A link
 | Cluster profile | The record the dashboard keeps of one cluster: how to reach it and where the umbrella is installed on it. [Connect](connect.md) adds one. |
 | Config | A named entry of the configs file: the nodes, modules and GPUs of the jobs that use it. [Add your config](presets.md#add-your-config) adds one. |
 | Configs file | The SbatchMan file `.local/configs.leonardo.yaml`, the one name the installer writes, filled from `configs/leonardo.yaml`. [Configs file](presets.md) has its fields. |
-| Dashboard | The web app that `crab web` serves on your laptop. It browses the cluster, writes jobs files and shows the state of your jobs. [Connect](connect.md) sets it up. |
+| Dashboard | The web app that `crab web` serves on your laptop. It browses the wrappers on the cluster and writes jobs files there. It does not launch jobs or show their state: `sbatchman status` on the cluster does ([Run a benchmark](launch.md)). [Connect](connect.md) sets it up. |
 | Fetch | The command `sbatchman fetch`, which copies the result folders from the cluster to your laptop. [Fetch and plot](results.md#fetch-and-plot) runs it. |
 | Jobs file | A YAML file in `benchmarks/<benchmark>/` that lists the jobs SbatchMan launches. [Write the jobs file](campaigns.md) writes one. |
 | Login node | The cluster machine you reach with ssh. You install the umbrella and launch jobs there, and Slurm runs the jobs on other nodes. [Install on the cluster](install.md#install-on-the-cluster) starts there. |
