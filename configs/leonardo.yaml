@@ -23,7 +23,7 @@
 # keep those config names and add these env entries to them; nothing else in the benchmarks depends on
 # this file.
 variables:
-  nodes: [2, 4, 8, 16]
+  nodes: [1, 2, 4, 8, 16]
 
 leonardo:
   scheduler: slurm

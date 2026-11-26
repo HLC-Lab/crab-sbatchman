@@ -24,7 +24,7 @@ TEMPLATE = REPO / "configs" / "leonardo.yaml"
 
 JOBS_FILES = {
     "blink": ["smoke.yaml", "blink-noise.yaml", "a2a-vs-a2a.yaml", "a2a-vs-incast.yaml"],
-    "qe": ["qe-alone.yaml", "qe-noise.yaml"],
+    "qe": ["qe-alone.yaml", "qe-noise.yaml", "cp-alone.yaml"],
 }
 JOBS_PATHS = [BENCHMARKS / folder / name for folder, names in JOBS_FILES.items() for name in names]
 QE_PATHS = [BENCHMARKS / "qe" / name for name in JOBS_FILES["qe"]]
@@ -33,7 +33,9 @@ READMES = [
     BENCHMARKS / "qe" / "README.md",
     BENCHMARKS / "qe" / "qe" / "README.md",
 ]
-QE_INPUTS = [BENCHMARKS / "qe" / "qe" / "si-scf.in"]
+QE_INPUTS = [BENCHMARKS / "qe" / "qe" / "si-scf.in", BENCHMARKS / "qe" / "qe" / "si-cp.in"]
+# The input each QE jobs file reads from benchmarks/qe/qe.
+QE_INPUT_OF = {"qe-alone.yaml": "si-scf.in", "qe-noise.yaml": "si-scf.in", "cp-alone.yaml": "si-cp.in"}
 # The pseudopotential is downloaded by get-upf.sh and git-ignored: tests must pass without it.
 UPF = BENCHMARKS / "qe" / "qe" / "Si.pz-vbc.UPF"
 GET_UPF = BENCHMARKS / "qe" / "qe" / "get-upf.sh"
@@ -168,7 +170,7 @@ def test_the_qe_files_read_input_and_pseudos_from_this_folder(path: Path) -> Non
     assert "<<JSON\n" in job["preprocess"]
     assert "<<'JSON'" not in job["preprocess"]
     assert "$CRAB_ROOT/examples" not in text
-    assert "$SBATCHMAN_WD/qe/si-scf.in" in _heredoc(job)
+    assert f"$SBATCHMAN_WD/qe/{QE_INPUT_OF[path.name]}" in _heredoc(job)
     assert not re.search(r"[$`]", _heredoc(job).replace("$SBATCHMAN_WD", ""))
 
 
@@ -199,7 +201,7 @@ def test_every_embedded_config_passes_crab_validation(
             for app in experiment["apps"].values():
                 assert wrapper_path_problem(app["path"]) is None, app["path"]
                 if "input_file" in app:
-                    assert Path(app["input_file"]) == qe_dir / "qe" / "si-scf.in"
+                    assert Path(app["input_file"]) == qe_dir / "qe" / QE_INPUT_OF[path.name]
                     assert Path(app["input_file"]).is_file()
                     assert Path(app["pseudo_dir"]) == qe_dir / "qe"
                     assert Path(app["pseudo_dir"]).is_dir()
@@ -235,8 +237,9 @@ def test_the_download_script_is_valid_bash() -> None:
     assert result.returncode == 0, result.stderr
 
 
-def test_the_qe_input_names_the_pseudopotential_the_script_downloads() -> None:
-    species = (BENCHMARKS / "qe" / "qe" / "si-scf.in").read_text()
+@pytest.mark.parametrize("path", QE_INPUTS, ids=lambda p: p.name)
+def test_the_qe_input_names_the_pseudopotential_the_script_downloads(path: Path) -> None:
+    species = path.read_text()
 
     assert f" {UPF.name}\n" in species
 
@@ -289,3 +292,15 @@ def test_qe_noise_runs_on_four_nodes_split_evenly_with_few_runs() -> None:
 )
 def test_qe_noise_docs_say_to_export_the_one_switch_request(path: Path) -> None:
     assert "SBATCH_REQ_SWITCH=1" in path.read_text()
+
+
+def test_the_cp_input_runs_250_steps_and_the_cp_job_runs_the_cp_wrapper() -> None:
+    text = (BENCHMARKS / "qe" / "qe" / "si-cp.in").read_text()
+    config = json.loads(_heredoc(_load(BENCHMARKS / "qe" / "cp-alone.yaml")["jobs"][0]).replace("$SBATCHMAN_WD", "/wd"))
+    apps = [app for experiment in config["experiments"].values() for app in experiment["apps"].values()]
+
+    assert re.search(r"^\s*calculation\s*=\s*'cp'", text, re.MULTILINE)
+    assert re.search(r"^\s*nstep\s*=\s*250\s*,?\s*$", text, re.MULTILINE)
+    assert [app["path"] for app in apps] == ["quantum-espresso/cp/v7.py"]
+    assert config["global_options"]["numnodes"] == "{nodes}"
+    assert _load(BENCHMARKS / "qe" / "cp-alone.yaml")["variables"]["nodes"] == [1]

@@ -507,21 +507,21 @@ def test_check_runs_validate_once_for_a_one_combination_file(tmp_path):
     line_with(check_lines(result), "benchmarks/qe/qe-alone.yaml", "crab validate")
 
 
-def test_shipped_jobs_files_cost_8_validate_runs_by_default_and_28_with_full_check(tmp_path):
+def test_shipped_jobs_files_cost_9_validate_runs_by_default_and_29_with_full_check(tmp_path):
     root = make_umbrella(tmp_path)
     for old in (root / "benchmarks").rglob("*.yaml"):
         old.unlink()
     shipped = sorted((REPO / "benchmarks").glob("*/*.yaml"))
-    assert len(shipped) == 6
+    assert len(shipped) == 7
     for src in shipped:
         _write(root / "benchmarks" / src.parent.name / src.name, src.read_text())
     default = run_install(root, "--account", "TESTACCT")
     assert default.returncode == 0, default.stdout + default.stderr
-    assert len(crab_calls(tmp_path)) == 8  # 2 + 2 for the 12-combination files, 1 each for four
+    assert len(crab_calls(tmp_path)) == 9  # 2 + 2 for the 12-combination files, 1 each for five
     (tmp_path / "crab.log").unlink()
     full = run_install(root, "--account", "TESTACCT", "--full-check")
     assert full.returncode == 0, full.stdout + full.stderr
-    assert len(crab_calls(tmp_path)) == 28
+    assert len(crab_calls(tmp_path)) == 29
 
 
 def test_full_check_validates_every_combination(tmp_path):
