@@ -6,6 +6,7 @@ this input.
 | File | What it is |
 |---|---|
 | `si-scf.in` | A `pw.x` self-consistent-field input for a 128-atom silicon supercell (2x2x4 diamond cells of 10.26 bohr, `ecutwfc = 60`, a 2x2x1 k-point grid). One run takes about 20 s on one Leonardo node with 4 GPUs. `disk_io = 'none'` keeps `pw.x` from writing wavefunction files (about 1.6 GB per run without it, measured on Leonardo). |
+| `si-cp.in` | A `cp.x` input on the same 128-atom silicon cell (`ecutwfc = 30`, 250 steps of damped electron dynamics, read by `cp-alone.yaml`). One run takes about 20 s on one Leonardo node with 4 GPUs. `cp.x` writes a restart folder of about 190 MB per run even with `disk_io = 'none'`, so the jobs file sets `"retain_files": false`. |
 | `get-upf.sh` | Downloads `Si.pz-vbc.UPF` into this folder and checks its sha256. Run it on the login node before the first launch. |
 | `Si.pz-vbc.UPF` | The silicon LDA norm-conserving pseudopotential `si-scf.in` names under `ATOMIC_SPECIES`. It is not in git (`.gitignore` lists it, its licence is unclear): `get-upf.sh` fetches it from the Quantum ESPRESSO pseudopotential library, <https://pseudopotentials.quantum-espresso.org/upf_files/Si.pz-vbc.UPF>. |
 | `README.md` | This file. |

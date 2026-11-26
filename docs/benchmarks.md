@@ -1,6 +1,6 @@
 # Wrap and register your benchmark
 
-Wrap an application that CRAB does not support yet, then register its binary. To run Blink, Quantum ESPRESSO or another benchmark that `crab setup` offers, follow [Register Blink](launch.md#register-blink).
+Wrap an application that CRAB does not support yet, then register its binary. To run Blink, Quantum ESPRESSO or another benchmark that `crab setup` offers, follow [Register Blink](launch.md#register-blink). Quantum ESPRESSO has a wrapper for `pw.x` and one for `cp.x`; `benchmarks/qe/cp-alone.yaml` runs the `cp.x` one on a 128-atom silicon cell.
 
 Only the wrapper (in [crab-wrappers](https://github.com/HLC-Lab/crab-wrappers), or kept local), the jobs files and the plots (in `benchmarks/<benchmark>/`) are collected. The application's source code and binary stay wherever you want them: your own repository, a module, a build folder. You never have to add them as a git submodule. You need the application's binary on the cluster and one real output of a run. Writing and testing the wrapper works on any machine with the umbrella installed, a laptop included. Registering a binary that exists and every run need the cluster: use the login node. On either machine, run the commands in a shell where you ran `source env.sh`. A wrapper written on a laptop must be copied to the cluster before a job can find it: see [Copy the wrapper to the cluster](#copy-the-wrapper-to-the-cluster).
 
