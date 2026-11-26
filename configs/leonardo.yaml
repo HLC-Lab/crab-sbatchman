@@ -66,6 +66,8 @@ leonardo:
     # brings its own HPC-X `mpirun`.
     - name: "crab_qe_{nodes}"
       nodes: "{nodes}"
+      # QE timings need the nodes to themselves: noise on shared nodes showed nothing.
+      exclusive: true
       # The Leonardo QE module is a CUDA build: it aborts at start without GPUs. 4 GPUs per node,
       # one per rank at `ppn: 4`.
       gpus: 4

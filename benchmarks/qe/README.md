@@ -9,6 +9,22 @@ Quantum ESPRESSO `pw.x` alone and against Blink incast noise. Without `disk_io =
 | `qe/` | The `pw.x` input and `get-upf.sh`, which downloads the pseudopotential. |
 | `plots.json` | Two starter plots for `sbatchman visualize`. |
 
+## Why 4 nodes
+
+`pw.x` needs 2 nodes for its traffic to cross the network. On 1 node it never leaves the node and the aggressor cannot reach it. The Blink aggressor gets the other 2 nodes. The nodes are exclusive, so nothing else runs there. On shared nodes the noise showed no slowdown.
+
+Ask Slurm to put the 4 nodes under one switch by exporting this variable in front of the launch (SbatchMan has no setting for it, and `sbatch` reads it like `--switches`):
+
+```bash
+SBATCH_REQ_SWITCH=1 sbatchman launch -f qe-noise.yaml
+```
+
+Slurm may ignore it on a topology without switch tiers. After the job, check which nodes it got:
+
+```bash
+sacct -j <job id> -X -o JobID,NodeList
+```
+
 The pseudopotential is not in git. Before the first launch, download it once on the login node (compute nodes have no internet):
 
 ```bash

@@ -259,3 +259,33 @@ def test_the_qe_files_delete_the_run_folders_of_successful_runs(path: Path) -> N
     for name, experiment in config["experiments"].items():
         merged = {**config.get("global_options", {}), **experiment.get("local_options", {})}
         assert merged.get("retain_files") is False, name
+
+
+def test_the_qe_gpu_config_asks_for_exclusive_nodes() -> None:
+    doc = yaml.safe_load(_fill(TEMPLATE.read_text()))
+    configs = {config["name"]: config for config in doc["leonardo"]["configs"]}
+
+    assert configs["crab_qe_{nodes}"]["exclusive"] is True
+    assert "exclusive" not in doc["leonardo"]["default_conf"]
+    assert {2, 4} <= set(doc["variables"]["nodes"])
+
+
+def test_qe_noise_runs_on_four_nodes_split_evenly_with_few_runs() -> None:
+    doc = _load(BENCHMARKS / "qe" / "qe-noise.yaml")
+    config = json.loads(_heredoc(doc["jobs"][0]).replace("$SBATCHMAN_WD", "/wd"))
+
+    assert doc["variables"]["nodes"] == [4]
+    assert config["global_options"]["numnodes"] == "{nodes}"
+    assert 0 < int(config["global_options"]["minruns"]) <= 5
+    assert config["experiments"]
+    for name, experiment in config["experiments"].items():
+        partitions = experiment["local_options"]["allocation"]["partitions"]
+        # 50/50 of 4 nodes: QE gets 2 nodes, so its traffic crosses the network.
+        assert partitions == {"victim": {"share": 50}, "aggressor": {"share": 50}}, name
+
+
+@pytest.mark.parametrize(
+    "path", [BENCHMARKS / "qe" / "qe-noise.yaml", BENCHMARKS / "qe" / "README.md"], ids=lambda p: p.name
+)
+def test_qe_noise_docs_say_to_export_the_one_switch_request(path: Path) -> None:
+    assert "SBATCH_REQ_SWITCH=1" in path.read_text()
