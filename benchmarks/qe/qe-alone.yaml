@@ -23,6 +23,8 @@ variables:
 jobs:
   - config: crab_qe_{nodes}
     tag: qe-alone-{nodes}n
+    # "retain_files": false: CRAB deletes the run folder of a successful run (pw.out goes with it, the
+    # metrics stay in the results); a failed run keeps its folder for debugging.
     # The heredoc is unquoted (<<JSON) so the shell expands $SBATCHMAN_WD, the folder you launch from.
     # Keep every other `$` and backtick out of the JSON.
     preprocess: |
@@ -33,6 +35,7 @@ jobs:
         "global_options": {
           "numnodes": "{nodes}",
           "ppn": "4",
+          "retain_files": false,
           "name": "qe-alone-{nodes}n"
         },
         "experiments": {

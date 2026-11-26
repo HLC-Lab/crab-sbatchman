@@ -239,3 +239,23 @@ def test_the_qe_input_names_the_pseudopotential_the_script_downloads() -> None:
     species = (BENCHMARKS / "qe" / "qe" / "si-scf.in").read_text()
 
     assert f" {UPF.name}\n" in species
+
+
+def test_the_qe_input_writes_no_wavefunctions_or_charge_density() -> None:
+    text = QE_INPUTS[0].read_text()
+    control = re.search(r"&CONTROL\n(.*?)\n/\n", text, re.DOTALL)
+
+    assert control, "no &CONTROL namelist in si-scf.in"
+    assert re.search(r"^\s*disk_io\s*=\s*'none'\s*$", control.group(1), re.MULTILINE)
+
+
+@pytest.mark.parametrize("path", QE_PATHS, ids=lambda p: p.name)
+def test_the_qe_files_delete_the_run_folders_of_successful_runs(path: Path) -> None:
+    config = json.loads(_heredoc(_load(path)["jobs"][0]).replace("$SBATCHMAN_WD", "/wd"))
+
+    # CRAB merges global_options and local_options per experiment (a local value wins), then
+    # reads retain_files from the merge.
+    assert config["experiments"]
+    for name, experiment in config["experiments"].items():
+        merged = {**config.get("global_options", {}), **experiment.get("local_options", {})}
+        assert merged.get("retain_files") is False, name

@@ -1,9 +1,11 @@
 ! Quantum ESPRESSO pw.x SCF input: 128-atom silicon supercell (2x2x4 diamond cells of 10.26 bohr), ecutwfc = 60, a 2x2x1 k-point grid.
 ! On one Leonardo node with 4 GPUs one run takes about 20 seconds; change the supercell, ecutwfc or the k grid to change the run time.
+! disk_io = 'none': pw.x writes no wavefunction or charge-density files, a benchmark needs only the timing.
 &CONTROL
     calculation = 'scf'
     prefix = 'si'
     outdir = './scratch/'
+    disk_io = 'none'
     pseudo_dir = './pseudo/'
 /
 &SYSTEM

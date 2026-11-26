@@ -1,6 +1,6 @@
 # Quantum ESPRESSO benchmarks
 
-Quantum ESPRESSO `pw.x` alone and against Blink incast noise. It writes `scratch/` folders under `SbatchMan/`, about 16 GB for `qe-alone.yaml` and 190 GB for `qe-noise.yaml`: launch from a large filesystem and delete the folders of finished jobs. Launch as in [Launch](../../docs/launch.md) and read as in [Results](../../docs/results.md).
+Quantum ESPRESSO `pw.x` alone and against Blink incast noise. Without `disk_io = 'none'`, `pw.x` leaves about 1.6 GB of wavefunction files in every run folder (measured on Leonardo, one node with 4 GPUs). The input sets it, so a run leaves nothing. Both jobs files also set `"retain_files": false`, so CRAB removes the folder of every successful run. A failed run keeps its folder for debugging. Launch as in [Launch](../../docs/launch.md) and read as in [Results](../../docs/results.md).
 
 | File | What it is |
 |---|---|

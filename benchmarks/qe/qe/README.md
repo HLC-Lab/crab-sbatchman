@@ -5,7 +5,7 @@ this input.
 
 | File | What it is |
 |---|---|
-| `si-scf.in` | A `pw.x` self-consistent-field input for a 128-atom silicon supercell (2x2x4 diamond cells of 10.26 bohr, `ecutwfc = 60`, a 2x2x1 k-point grid). One run takes about 20 s on one Leonardo node with 4 GPUs. |
+| `si-scf.in` | A `pw.x` self-consistent-field input for a 128-atom silicon supercell (2x2x4 diamond cells of 10.26 bohr, `ecutwfc = 60`, a 2x2x1 k-point grid). One run takes about 20 s on one Leonardo node with 4 GPUs. `disk_io = 'none'` keeps `pw.x` from writing wavefunction files (about 1.6 GB per run without it, measured on Leonardo). |
 | `get-upf.sh` | Downloads `Si.pz-vbc.UPF` into this folder and checks its sha256. Run it on the login node before the first launch. |
 | `Si.pz-vbc.UPF` | The silicon LDA norm-conserving pseudopotential `si-scf.in` names under `ATOMIC_SPECIES`. It is not in git (`.gitignore` lists it, its licence is unclear): `get-upf.sh` fetches it from the Quantum ESPRESSO pseudopotential library, <https://pseudopotentials.quantum-espresso.org/upf_files/Si.pz-vbc.UPF>. |
 | `README.md` | This file. |
@@ -39,3 +39,5 @@ experiment until it converges (10 successful runs by default; `qe-noise.yaml` as
 `qe-noise.yaml` runs six experiments in one job under a 30-minute limit, so one run has to stay
 short. To make a run longer or shorter, change the supercell, `ecutwfc` (the plane-wave cutoff, in
 Ry) or the k-point grid on the `K_POINTS` line, and time it on the cluster.
+
+Disk: with `disk_io = 'none'` a run leaves nothing but a few KB. The jobs files also set `"retain_files": false`, so CRAB deletes the folder of every successful run, `pw.out` included. A failed run keeps its folder for debugging.
