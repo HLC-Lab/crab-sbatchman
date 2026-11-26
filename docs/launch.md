@@ -1,6 +1,6 @@
 # Run a benchmark
 
-Run a benchmark that is already supported, Blink first, from registering it to finding its results. Quantum ESPRESSO (`benchmarks/qe`) follows the same steps, with one download first: on the login node, run `benchmarks/qe/qe/get-upf.sh` once (the pseudopotential is not in git, and compute nodes have no internet). Run every step on the cluster login node. [Results](results.md) then copies the results to your laptop. To launch the jobs files of several benchmarks in one run, SbatchMan has `sbatchman campaign`: the [Glossary](glossary.md) says what it takes.
+Run a benchmark that is already supported, Blink first, from registering it to finding its results. Quantum ESPRESSO (`benchmarks/qe`) follows the same steps, with one download first: on the login node, run `benchmarks/qe/qe/get-upf.sh` once (the pseudopotential is not in git, and compute nodes have no internet). Its input sets `disk_io = 'none'`, so a run leaves no wavefunction files (without it, about 1.6 GB per run), and the jobs files remove the folder of each successful run. A failed run keeps its folder for debugging. Run every step on the cluster login node. [Results](results.md) then copies the results to your laptop. To launch the jobs files of several benchmarks in one run, SbatchMan has `sbatchman campaign`: the [Glossary](glossary.md) says what it takes.
 
 ## Before you start
 
