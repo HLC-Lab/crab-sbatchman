@@ -81,7 +81,7 @@ Change the keys of the jobs file you need:
 | Key | Meaning |
 |---|---|
 | `variables` | SbatchMan runs one job per value. Write `{nodes}` where the value goes. |
-| `config` | The name of a config in the configs file. |
+| `config` | The name of a config in the configs file. Include every variable that has several values, as the config's `name` does, or configs overwrite one another ([Fields of a config](presets.md#fields-of-a-config)). |
 | `tag` | The job name and its result folder. Keep it equal to `"name"` in the JSON. |
 
 Change the keys of the CRAB JSON you need. [The commented template](https://github.com/HLC-Lab/crab-sbatchman/blob/main/templates/jobs-template.yaml) says what to change in each.

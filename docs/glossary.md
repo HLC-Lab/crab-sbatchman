@@ -4,7 +4,7 @@ The words the docs use for the parts of the setup, in alphabetical order. A link
 
 | Word | Meaning |
 |---|---|
-| Campaign | A jobs file written for one set of runs ([Write the jobs file](campaigns.md)). It is not the `sbatchman campaign` command, which takes a YAML file of its own kind. |
+| Campaign | A jobs file written for one set of runs ([Write the jobs file](campaigns.md)). It is not the `sbatchman campaign` command, which takes a YAML file of its own kind: `apps:` with a `name`, a `dir` and `steps`, each step naming a `jobs` file in that `dir`. Run it as `sbatchman campaign campaign.yaml -c <cluster>`; `--dry-run` lists the jobs without submitting. It launches each jobs file from its app's `dir`, waits for the jobs to finish and keeps a journal in `./campaign_results`. `sbatchman campaign-tui` opens a terminal screen to monitor and manage campaigns. |
 | Cluster profile | The record the dashboard keeps of one cluster: how to reach it and where the umbrella is installed on it. [Connect](connect.md) adds one. |
 | Config | A named entry of the configs file: the nodes, modules and GPUs of the jobs that use it. [Add your config](presets.md#add-your-config) adds one. |
 | Configs file | The SbatchMan file `.local/configs.leonardo.yaml`, the one name the installer writes, filled from `configs/leonardo.yaml`. [Configs file](presets.md) has its fields. |
@@ -21,4 +21,4 @@ The words the docs use for the parts of the setup, in alphabetical order. A link
 | Smoke test | The first small run: one all-to-all alone on 2 nodes. [Launch the smoke test](launch.md#launch-the-smoke-test) runs it. |
 | Tag | The name of a job and of its result folder, set by `tag` in the jobs file. [Change the keys](campaigns.md#change-the-keys) lists it. |
 | Umbrella | This repo. It installs CRAB and SbatchMan at matching versions and ships example benchmarks. [Start here](index.md) tells where to begin. |
-| Wrapper | A Python file that names an application's binary and turns its output into rows. Shared wrappers are in `crab-wrappers/`, private ones in `local/wrappers/` of the `CRAB` folder. [What a wrapper is](benchmarks.md#what-a-wrapper-is) tells more. |
+| Wrapper | A Python file that names an application's binary and turns its output into rows. Every app of a job needs one: CRAB counts the rows as samples and repeats runs until they converge. Shared wrappers are in `crab-wrappers/`, private ones in `local/wrappers/` of the `CRAB` folder. [What a wrapper is](benchmarks.md#what-a-wrapper-is) tells more. |

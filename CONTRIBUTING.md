@@ -34,6 +34,8 @@ A benchmark folder holds everything one benchmark needs to run through SbatchMan
 - `parser.py`, a symbolic link to `../parser.py`.
 - `README.md`, which names the binary, its modules and the campaigns.
 
+The folder holds no source code and no binary. The benchmark's own code and build stay wherever you keep them (your repository, a module, a build folder), and the README names where. Adding the benchmark as a git submodule is optional, never required. Only the wrapper (in `crab-wrappers`, or local), the jobs files and the plots are collected.
+
 Copy `benchmarks/blink/` and change it. The installer runs `sbatchman init` in every `benchmarks/*/` folder that holds a jobs file, so no other registration is needed. Jobs files point at the cluster file with `configs: ../../.local/configs.leonardo.yaml`.
 
 The tests in `tests/test_benchmarks.py` run `crab validate` on every combination of every jobs file. Add the folder and its jobs files to the lists at the top of that test file.

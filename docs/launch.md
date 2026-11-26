@@ -1,6 +1,6 @@
 # Run a benchmark
 
-Run a benchmark that is already supported, Blink first, from registering it to finding its results. Run every step on the cluster login node. [Results](results.md) then copies the results to your laptop.
+Run a benchmark that is already supported, Blink first, from registering it to finding its results. Run every step on the cluster login node. [Results](results.md) then copies the results to your laptop. To launch the jobs files of several benchmarks in one run, SbatchMan has `sbatchman campaign`: the [Glossary](glossary.md) says what it takes.
 
 ## Before you start
 

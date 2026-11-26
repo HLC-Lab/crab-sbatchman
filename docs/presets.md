@@ -28,7 +28,7 @@ Each entry of `configs` holds these fields. A key written with hyphens is read w
 
 | Field | Meaning | Example | Default | Required |
 |---|---|---|---|---|
-| `name` | The name of the config. A job writes it in its `config:` key. `{nodes}` makes one config for each value of that variable. | `name: "myapp_{nodes}"` | none | yes |
+| `name` | The name of the config. A job writes it in its `config:` key. `{nodes}` makes one config for each value of that variable. SbatchMan fills each variable into `default_conf` and into the fields of a config, once for each value, and names the config from `name` alone. Write every variable that has several values in `name` and in the `config:` of every job that uses it. Otherwise the configs get the same name, each overwrites the one before, and a job can run with the value of another combination. A variable with one value is safe. | `name: "myapp_{nodes}"` | none | yes |
 | `partition` | The Slurm partition (`--partition`). The template holds a token here. | `partition: "mypartition"` | none | no |
 | `nodes` | The nodes to ask for (`--nodes`). For CRAB it must cover the job's `"numnodes"`. | `nodes: "{nodes}"` | none | no |
 | `ntasks` | The total number of tasks (`--ntasks`). | `ntasks: 16` | none | no |
