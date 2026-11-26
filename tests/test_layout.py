@@ -47,24 +47,10 @@ def test_submodules_are_gitlinks():
 
 
 def test_tracked_folders_exist_and_site_file_has_placeholder():
-    for folder in ("benchmarks/blink", "configs", "site"):
+    for folder in ("benchmarks/blink", "benchmarks/qe", "configs", "site"):
         assert (ROOT / folder).is_dir(), folder
     leonardo = (ROOT / "site" / "leonardo.env").read_text()
     assert "<YOUR_ACCOUNT>" in leonardo
-
-
-def test_no_tracked_benchmark_config_or_site_file_names_the_qe_example():
-    """The Quantum ESPRESSO example is not shipped: its folder and its config must not creep back."""
-    pattern = re.compile(r"benchmarks/qe|crab_qe")
-    for name in _tracked_files():
-        if not name.startswith(("benchmarks/", "configs/", "site/")):
-            continue
-        path = ROOT / name
-        if not path.is_file():
-            continue
-        assert not name.startswith("benchmarks/qe"), name
-        text = path.read_text(errors="replace")
-        assert not pattern.search(text), f"the QE example is named in {name}"
 
 
 def test_gitignore_has_local_files():
@@ -77,11 +63,11 @@ def test_gitignore_ignores_the_sbatchman_projects_but_not_the_jobs_files():
     """`sbatchman init` makes benchmarks/<name>/SbatchMan/ on every machine: it is never tracked."""
     for path in (
         "benchmarks/blink/SbatchMan/configs/leonardo/crab_run_2.sh",
-        "benchmarks/blink/SbatchMan/experiments/leonardo/crab_run_4/smoke-4n/data_app_0.csv",
+        "benchmarks/qe/SbatchMan/experiments/leonardo/crab_qe_2/qe-alone-2n/data_app_0.csv",
     ):
         ignored = subprocess.run(["git", "check-ignore", "-q", path], cwd=ROOT, check=False)
         assert ignored.returncode == 0, path
-    for path in ("benchmarks/blink/smoke.yaml", "benchmarks/blink/README.md"):
+    for path in ("benchmarks/blink/smoke.yaml", "benchmarks/qe/README.md"):
         kept = subprocess.run(["git", "check-ignore", "-q", path], cwd=ROOT, check=False)
         assert kept.returncode == 1, path
 

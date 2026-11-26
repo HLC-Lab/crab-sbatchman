@@ -5,9 +5,9 @@ A jobs file is the YAML file that SbatchMan launches: which jobs to run, on how 
 ## Before you start
 
 - The umbrella installed on the cluster (see [Install](install.md)), with `source env.sh` run in your shell.
-- A benchmark you can run: Blink (see [Run a benchmark](launch.md)) or your own (see [Wrap and register your benchmark](benchmarks.md)).
+- A benchmark you can run: Blink or Quantum ESPRESSO (see [Run a benchmark](launch.md)) or your own (see [Wrap and register your benchmark](benchmarks.md)).
 
-The jobs file names a SbatchMan config, which holds the modules and the GPUs of its jobs. If `crab_run_{nodes}` (CPU) does not fit your application, add a config first: [Add your config](presets.md#add-your-config).
+The jobs file names a SbatchMan config, which holds the modules and the GPUs of its jobs. If neither `crab_run_{nodes}` (CPU) nor `crab_qe_{nodes}` (4 GPUs per node) fits your application, add a config first: [Add your config](presets.md#add-your-config).
 
 ## By hand
 

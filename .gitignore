@@ -10,3 +10,5 @@ __pycache__/
 benchmarks/*/SbatchMan/
 !tests/fixtures/results/
 tests/forbidden-words.txt
+# Downloaded by benchmarks/qe/qe/get-upf.sh, never committed (licence unclear)
+benchmarks/qe/qe/Si.pz-vbc.UPF

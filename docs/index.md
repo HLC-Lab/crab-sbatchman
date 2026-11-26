@@ -16,7 +16,7 @@ Another Slurm cluster can use the umbrella too. You edit two files (`site/local.
 
 ## Two ways to use it
 
-Run a benchmark that is already here: Blink is in `benchmarks/blink`, and [Run a benchmark](launch.md#register-blink) registers it and the others that `crab setup` offers.
+Run a benchmark that is already here: Blink is in `benchmarks/blink`, Quantum ESPRESSO in `benchmarks/qe`, and [Run a benchmark](launch.md#register-blink) registers it and the others that `crab setup` offers.
 Or add your own application, with a wrapper and a jobs file.
 
 ## Reading order
