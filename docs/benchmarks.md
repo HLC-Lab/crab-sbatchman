@@ -22,7 +22,7 @@ srun --account=<YOUR_ACCOUNT> --ntasks=1 --time=00:05:00 /path/to/your-app > std
 
 ## Write the wrapper
 
-Create the wrapper from the template:
+Create the wrapper from the template, or have a language model draft it: give it the file [WRAPPER-SKILL.md](https://raw.githubusercontent.com/HLC-Lab/crab-wrappers/main/WRAPPER-SKILL.md) of crab-wrappers and the real output, and it walks through the same steps as you, up to a wrapper that passes `crab wrappers test --strict`. By hand:
 
 ```bash
 crab wrappers new myapp --local
